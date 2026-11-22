@@ -5,7 +5,7 @@ const vm=require('node:vm');
 const source=fs.readFileSync(require('node:path').join(__dirname,'..','main.js'),'utf8');
 function fixture(){
  const structures=new Map(),elements=new Map(),terrains=new Map(),instances=[],particles=new Map(),solid=new Map();
- const callbacks=new Map(),senders=new Map(),targets=new Map(),nodes=new Map(),recipes=new Map();
+ const callbacks=new Map(),senders=new Map(),targets=new Map(),nodes=new Map(),recipes=new Map(),listeners=new Map();
  const coord=(x,y)=>x+':'+y,errors=[];
  const target=(x,y)=>instances.find(s=>s.x===x&&s.y===y);
  const cellType=(x,y)=>particles.get(coord(x,y));
@@ -59,13 +59,14 @@ function fixture(){
    registerNode:(id,d)=>nodes.set(id,d),
    conservatory:{appendUnlock:()=>{}}
   },
-  events:{on:()=>{}},
+  events:{on:(event,fn)=>listeners.set(event,fn)},
   ui:{toast:()=>{}},
   time:{getElapsedMs:()=>Date.now()},
   energy:{getNetworkFreeCapacityAtCell:()=>3500}
  };
  const enums={MatterType:{Powder:1,Liquid:2,Gas:3},Tech:{SignalDevices:1,Refining8:2}};
- vm.runInNewContext(source,{sandkit:{api,enums},console:{error:(...parts)=>errors.push(parts.join(' '))}});
+ const context={sandkit:{api,enums},console:{error:(...parts)=>errors.push(parts.join(' '))}};
+ vm.runInNewContext(source+'\n;globalThis.__testMeterSnapshot=meterSnapshot;',context);
  const place=(type,x,y,extra={})=>{
   const d=structures.get('iono-'+type);
   assert.ok(d,'missing structure: '+type);
@@ -74,7 +75,8 @@ function fixture(){
  };
  const run=(count=1)=>{for(let i=0;i<count;i++)callbacks.get('iono:industrial-cycle')();};
  return {structures,elements,terrains,instances,place,run,errors,put:setCell,
-  get:(x,y)=>cellType(x,y),solid,particles,targets,nodes,recipes};
+  get:(x,y)=>cellType(x,y),solid,particles,targets,nodes,recipes,
+  snapshot:context.__testMeterSnapshot,emit:(event,data)=>listeners.get(event)?.(data)};
 }
 test('registers real ingot terrain, no chip pixels, and vanilla silicon input remains',()=>{
  const f=fixture();
@@ -179,4 +181,35 @@ test('one held chip installs in controller once and unlocks hysteresis output',(
  f.run();assert.equal(carrier.data.chips,0);assert.equal(controller.data.installed,true);
  f.run(2);assert.equal(controller.data.active,true);
  assert.equal(carrier.data.chips,0);
+});
+
+test('rolling metrics count real silicon inputs and actual ingot output, not moves',()=>{
+ const f=fixture();
+ f.place('crystal-grower',10,10);
+ for(let i=0;i<3;i++){f.put(9,10,'iono-purified-silicon');f.run();}
+ const data=f.snapshot(1);
+ const consumed=data.find(x=>x.material==='iono-purified-silicon');
+ const produced=data.find(x=>x.material==='iono-silicon-ingot');
+ assert.equal(consumed.consumed,3);
+ assert.equal(consumed.produced,0);
+ assert.equal(produced.produced,3);
+ assert.equal(produced.consumed,0);
+ assert.equal(produced.producedPerMin,3);
+});
+test('collection statistics do not pretend gathered gold was industrial production',()=>{
+ const f=fixture();
+ f.emit('resource:collected',{resourceId:'gold',amount:15});
+ const gold=f.snapshot(1).find(x=>x.material==='gold');
+ assert.equal(gold.collected,15);
+ assert.equal(gold.produced,0);
+ assert.equal(gold.consumed,0);
+});
+test('storage movement is counted as transport, not manufacture',()=>{
+ const f=fixture();
+ f.place('box',10,10,{material:'silicon',capacity:10,release:0});
+ f.put(9,10,'silicon');f.run();
+ let silicon=f.snapshot(1).find(x=>x.material==='silicon');
+ assert.equal(silicon.received,1);
+ assert.equal(silicon.produced,0);
+ assert.equal(silicon.consumed,0);
 });
