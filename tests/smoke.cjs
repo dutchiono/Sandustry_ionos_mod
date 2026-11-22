@@ -20,7 +20,10 @@ function fixture(){
   },
   elements:{
    register:d=>elements.set(d.id,d),
-   isTypeAtCell:(x,y,id)=>mut.find(e=>e.x===x&&e.y===y)?.type===id
+   isTypeAtCell:(x,y,id)=>mut.find(e=>e.x===x&&e.y===y)?.type===id,
+   getResolvedTypeAtCell:(x,y)=>mut.find(e=>e.x===x&&e.y===y)?.type??null,
+   getIdByType:t=>t,
+   getMatterTypeAtCell:(x,y)=>{const t=mut.find(e=>e.x===x&&e.y===y)?.type;return ['oxygen','hydrogen'].includes(t)?3:['water','florinol','acid'].includes(t)?2:1;}
   },
   grid:{
    isCellEmptyAtCell:(x,y)=>!mut.some(e=>e.x===x&&e.y===y),
@@ -40,7 +43,7 @@ function fixture(){
     registerNode:()=>{},conservatory:{appendUnlock:()=>{}}},
   events:{on:()=>{}},ui:{toast:()=>{}},time:{getElapsedMs:()=>Date.now()}
  };
- const enums={MatterType:{Powder:1,Liquid:2},Tech:{SignalDevices:1}};
+ const enums={MatterType:{Powder:1,Liquid:2,Gas:3},Tech:{SignalDevices:1}};
  vm.runInNewContext(source,{sandkit:{api,enums},console});
  const place=(type,x,y,extra={})=>{
   const d=structures.get('iono-'+type);
@@ -97,4 +100,34 @@ test('Tier 9 orbital terminal consumes three inputs to deliver a shipment',()=>{
  assert.equal(s.data.processed,1);
  assert.equal(f.mut.length,1);
  assert.equal(f.mut[0].type,'iono-orbital-shipment');
+});
+
+test('oxygen goes to the accepted port and hydrogen to reject port without loss',()=>{
+ const f=fixture();
+ const sep=f.place('phase-filter',10,10,{material:'oxygen'});
+ f.put('oxygen',9,10);
+ f.run();
+ assert.equal(f.mut.length,1);
+ assert.equal(f.mut[0].type,'oxygen');
+ assert.equal(f.mut[0].x,11);
+ assert.equal(sep.data.passed,1);
+ f.mut.length=0;
+ f.put('hydrogen',9,10);
+ f.run();
+ assert.equal(f.mut.length,1);
+ assert.equal(f.mut[0].type,'hydrogen');
+ assert.equal(f.mut[0].x,10);
+ assert.equal(f.mut[0].y,11);
+ assert.equal(sep.data.rejected,1);
+});
+test('separator refuses to destroy solids or route into blocked outlets',()=>{
+ const f=fixture();
+ f.place('phase-filter',10,10,{material:'oxygen'});
+ f.put('silicon',9,10);f.run();
+ assert.equal(f.mut.length,1);
+ f.mut.length=0;
+ f.put('oxygen',9,10);f.put('water',11,10);
+ f.run();
+ assert.equal(f.mut.length,2);
+ assert.equal(f.mut.find(x=>x.x===9).type,'oxygen');
 });
