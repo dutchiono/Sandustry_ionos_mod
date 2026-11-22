@@ -12,7 +12,7 @@ const isPixel=(x,y,m)=>api.elements.isTypeAtCell(x,y,m);
 const empty=(x,y)=>api.grid.isCellEmptyAtCell(x,y);
 function guard(label,fn){try{return fn();}catch(error){console.error("[Iono] "+label,error);return null;}}
 const materials=["florinol","silicon","acid","nickel","water","sand","quartz","charcoal","aura",
-"iono-wafer","iono-logic-die","iono-control-module","iono-spent-etchant","iono-process-medium","iono-control-core","iono-supervisor"];
+"iono-wafer","iono-logic-die","iono-control-module","iono-spent-etchant","iono-process-medium","iono-control-core","iono-supervisor","iono-orbital-shipment"];
 const opts=xs=>xs.map(value=>({label:value,value}));
 const choice=(key,label,def,values)=>({type:"choice",id:key,label,default:def,options:opts(values)});
 const integer=(key,label,def,min,max)=>({type:"integer",id:key,label,default:def,min,max});
@@ -23,7 +23,8 @@ const ELEM=[
 ["spent-etchant","Spent Etchant","Liquid",8,[140,130,60,255]],
 ["process-medium","Purified Process Medium","Liquid",6,[70,210,200,255]],
 ["control-core","Industrial Control Core","Powder",9,[240,180,85,255]],
-["supervisor","Factory Supervisor","Powder",10,[225,90,150,255]]];
+["supervisor","Factory Supervisor","Powder",10,[225,90,150,255]],
+["orbital-shipment","Orbital Shipment","Powder",10,[70,180,245,255]]];
 for(const [short,name,matterType,density,color] of ELEM)
  api.elements.register({id:id(short),name,matterType:enums.MatterType[matterType],
  density,isGrabbable:true,isTransportable:true,colors:{variants:[color]}});
@@ -80,6 +81,29 @@ const MACHINES=[
 ["core-forge","Control Core Forge","iono-control-module","aura","iono-control-core",9],
 ["supervisor-assembler","Supervisor Assembler","iono-control-core","iono-process-medium","iono-supervisor",9]
 ];
+// A Tier-9 continuous-production sink. Three physical input streams must converge.
+// LEFT receives Supervisors; ABOVE receives Wafers; BELOW receives Process Medium.
+// Outputs one shipment RIGHT and records the achieved throughput in placed structure data.
+structure("orbital-terminal","Orbital Supply Terminal",
+ "LEFT Supervisor + ABOVE Wafer + BELOW Process Medium -> RIGHT Orbital Shipment.",
+ {enabled:true,processed:0,intervalStreak:0,lastProducedAt:0,value:0},"industrial","collector");
+api.signals.targets.register(id("orbital-terminal"),(s,p)=>update(s,{enabled:!!p.combined}));
+function orbital(s){
+ if(s.data?.enabled===false)return;
+ const l=[s.x-1,s.y],u=[s.x,s.y-1],d=[s.x,s.y+1],r=[s.x+1,s.y];
+ if(!isPixel(...l,"iono-supervisor")||!isPixel(...u,"iono-wafer")||
+    !isPixel(...d,"iono-process-medium")||!empty(...r))return;
+ api.grid.mutate(w=>{
+  if(!isPixel(...l,"iono-supervisor")||!isPixel(...u,"iono-wafer")||
+     !isPixel(...d,"iono-process-medium")||!empty(...r))return;
+  w.elements.removeAtCell(...l);w.elements.removeAtCell(...u);w.elements.removeAtCell(...d);
+  w.elements.createAtCell(...r,"iono-orbital-shipment");
+ });
+ const now=api.time.getElapsedMs();
+ const streak=now-read(s,"lastProducedAt")<=5000?read(s,"intervalStreak")+1:1;
+ update(s,{processed:read(s,"processed")+1,intervalStreak:streak,
+ lastProducedAt:now,value:streak});
+}
 for(const [short,name,a,b,out,tier] of MACHINES){
  structure(short,name,"T"+tier+" LEFT: "+a+" + ABOVE: "+b+" -> RIGHT: "+out,
  {enabled:true,processed:0,value:0},"industrial","smelter");
@@ -187,6 +211,7 @@ api.triggers.register("iono:industrial-cycle",{intervalMs:500,callback:()=>{
  api.structures.forEachOfType(id("valve"),s=>guard("valve",()=>valve(s)));
  for(const [short,,a,b,out] of MACHINES)
   api.structures.forEachOfType(id(short),s=>guard(short,()=>reaction(s,a,b,out)));
+ api.structures.forEachOfType(id("orbital-terminal"),s=>guard("orbital terminal",()=>orbital(s)));
  guard("numeric wiring",circuits);
 }});
 // New research nodes: Tier 8 then 9, tied to existing signal-device research.
@@ -201,6 +226,6 @@ guard("research 8",()=>{
 });
 guard("research 9",()=>{
  api.tech.registerDefinition(t9,tech9);api.tech.registerNode(t9,tech9,{parentId:t8});
- api.tech.conservatory.appendUnlock(t9,{structures:MACHINES.filter(m=>m[5]===9).map(m=>id(m[0]))});
+ api.tech.conservatory.appendUnlock(t9,{structures:[...MACHINES.filter(m=>m[5]===9).map(m=>id(m[0])),id("orbital-terminal")]});
 });
 api.events.on("game:ready",()=>guard("welcome",()=>api.ui.toast("Iono Expansion: Tier 8 and 9 loaded")));
