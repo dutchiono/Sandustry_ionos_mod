@@ -6,11 +6,14 @@ const source=fs.readFileSync(require('node:path').join(__dirname,'..','main.js')
 function fixture(){
  const structures=new Map(),elements=new Map(),terrains=new Map(),instances=[],particles=new Map(),solid=new Map();
  const callbacks=new Map(),senders=new Map(),targets=new Map(),nodes=new Map(),recipes=new Map(),listeners=new Map();
- const coord=(x,y)=>x+':'+y,errors=[];
+ const coord=(x,y)=>x+':'+y,errors=[],pipes=new Map();
  const target=(x,y)=>instances.find(s=>s.x===x&&s.y===y);
  const cellType=(x,y)=>particles.get(coord(x,y));
  const setCell=(x,y,m)=>particles.set(coord(x,y),m);
  const api={
+  pipes:{isAtCell:(x,y)=>pipes.has(coord(x,y)),
+   isEnabledAtCell:(x,y)=>pipes.get(coord(x,y))===true,
+   setEnabledAtCell:(x,y,enabled)=>{if(pipes.has(coord(x,y)))pipes.set(coord(x,y,!!enabled);}},
   structures:{
    register:d=>structures.set(d.id,d),
    registerPlacementConfig:()=>{},
@@ -76,7 +79,7 @@ function fixture(){
  const run=(count=1)=>{for(let i=0;i<count;i++)callbacks.get('iono:industrial-cycle')();};
  return {structures,elements,terrains,instances,place,run,errors,put:setCell,
   get:(x,y)=>cellType(x,y),solid,particles,targets,nodes,recipes,
-  snapshot:context.__testMeterSnapshot,emit:(event,data)=>listeners.get(event)?.(data)};
+  snapshot:context.__testMeterSnapshot,emit:(event,data)=>listeners.get(event)?.(data),pipes};
 }
 test('registers real ingot terrain, no chip pixels, and vanilla silicon input remains',()=>{
  const f=fixture();
@@ -237,4 +240,67 @@ test('storage movement is counted as transport, not manufacture',()=>{
  assert.equal(silicon.received,1);
  assert.equal(silicon.produced,0);
  assert.equal(silicon.consumed,0);
+});
+
+test('gas and liquid phase filters route the right phase without deleting anything else',()=>{
+ const f=fixture();
+ const gas=f.place('gas-filter',10,10,{material:'oxygen'});
+ f.put(9,10,'water');f.run();
+ assert.equal(f.get(9,10),'water');
+ f.particles.delete('9:10');
+ f.put(9,10,'oxygen');f.run();
+ assert.equal(f.get(11,10),'oxygen');
+ f.particles.delete('11:10');
+ f.put(9,10,'hydrogen');f.run();
+ assert.equal(f.get(10,11),'hydrogen');
+ const liquid=f.place('liquid-filter',20,10,{material:'florinol'});
+ f.put(19,10,'oxygen');f.run();
+ assert.equal(f.get(19,10),'oxygen');
+ f.particles.delete('19:10');
+ f.put(19,10,'florinol');f.run();
+ assert.equal(f.get(21,10),'florinol');
+ f.particles.delete('21:10');
+ f.put(19,10,'water');f.run();
+ assert.equal(f.get(20,11),'water');
+});
+test('one-cell pump and separate gas and liquid vents reject wrong phases and blocked exits',()=>{
+ const f=fixture();
+ f.place('fluid-pump',10,10,{phase:'liquid'});
+ f.put(9,10,'oxygen');f.run();
+ assert.equal(f.get(9,10),'oxygen');
+ f.particles.delete('9:10');
+ f.put(9,10,'florinol');f.run();
+ assert.equal(f.get(11,10),'florinol');
+ f.place('gas-vent',20,10);
+ f.put(19,10,'water');f.run();
+ assert.equal(f.get(19,10),'water');
+ f.particles.delete('19:10');
+ f.put(19,10,'oxygen');f.run();
+ assert.equal(f.get(20,9),'oxygen');
+ f.place('liquid-outlet',30,10);
+ f.put(29,10,'hydrogen');f.run();
+ assert.equal(f.get(29,10),'hydrogen');
+ f.particles.delete('29:10');
+ f.put(29,10,'water');f.run();
+ assert.equal(f.get(30,11),'water');
+});
+test('pipe gate enables and disables a real adjacent pipe from physical numerical cable',()=>{
+ const f=fixture();
+ const gate=f.place('pipe-gate',10,10,{control:'circuit',signal:'enable',threshold:1});
+ f.pipes.set('11:10',true);
+ f.run(2);
+ assert.equal(gate.data.enabled,false);
+ assert.equal(f.pipes.get('11:10'),false);
+ f.place('tank',8,9,{stored:10,value:10,release:0,material:'florinol'});
+ f.place('wire',9,9);
+ f.place('decider',10,9,{signal:'florinol',operator:'>=',threshold:5,outputSignal:'enable',amount:1});
+ // A cable ABOVE the gate picks up the combinator's output via right output.
+ f.place('wire',11,9);
+ // Move gate to x11 so input is x11,9, pipe becomes x12,10.
+ gate.x=11;
+ f.pipes.delete('11:10');
+ f.pipes.set('12:10',false);
+ f.run(5);
+ assert.equal(gate.data.enabled,true);
+ assert.equal(f.pipes.get('12:10'),true);
 });
