@@ -91,6 +91,8 @@ for(const [name,label,kind] of [
  {material:kind==="gas"?"oxygen":"water",mode:"allow",control:"always",
   signal:"enable",threshold:1,enabled:true,passed:0,rejected:0,value:0},"logistics","collector");
 }
+structure("pipe-gate","Circuit Pipe Gate","Controls the real vanilla pipe segment immediately RIGHT using the signal cable ABOVE.",
+ {control:"circuit",signal:"enable",threshold:1,enabled:false,value:0},"logistics","signalToggle");
 structure("fluid-pump","Signal Pump","LEFT liquid/gas → RIGHT outlet. Circuit cable ABOVE; configurable phase.",
  {phase:"both",control:"always",signal:"enable",threshold:1,enabled:true,processed:0,value:0},"logistics","collector");
 structure("gas-vent","Signal Gas Vent","LEFT gas → ABOVE outlet. Optional cable BELOW.",
@@ -115,7 +117,7 @@ for(const kind of ["phase-filter","gas-filter","liquid-filter"])
   ...controlFields]);
 config("fluid-pump",[
  choice("phase","Transfer","both",["both","gas","liquid"]),...controlFields]);
-for(const kind of ["gas-vent","liquid-outlet"])config(kind,controlFields);
+for(const kind of ["gas-vent","liquid-outlet","pipe-gate"])config(kind,controlFields);
 config("probe",[choice("material","Material","florinol",materials),integer("radius","Radius",4,1,12)]);
 config("decider",[choice("signal","Input","florinol",materials.concat(["enable","calculated"])),
  choice("operator","Comparison","<",["<","<=","=",">",">=","!="]),
@@ -161,6 +163,13 @@ function transport(s,kind){
   w.elements.createAtCell(...dest,raw);
   update(s,{processed:read(s,"processed")+1,value:read(s,"processed")+1});
  });
+}
+function pipeGate(s){
+ const x=s.x+1,y=s.y;
+ if(!api.pipes?.isAtCell?.(x,y))return;
+ const enabled=!!s.data?.enabled;
+ if(api.pipes.isEnabledAtCell(x,y)!==enabled)
+  api.pipes.setEnabledAtCell(x,y,enabled);
 }
 function filter(s,kind="phase-filter"){
  const left=[s.x-1,s.y],right=[s.x+1,s.y],down=[s.x,s.y+1];
@@ -519,7 +528,7 @@ function circuits(){
   });
  }
  for(const type of ["decider","arithmetic","memory","adapter","valve","chip-controller",
-   "fluid-pump","gas-vent","liquid-outlet","phase-filter","gas-filter","liquid-filter"]){
+   "fluid-pump","gas-vent","liquid-outlet","pipe-gate","phase-filter","gas-filter","liquid-filter"]){
   api.structures.forEachOfType(id(type),s=>{
    const signal=s.data?.signal||"enable",v=input(s.x-1,s.y,signal);
    if(type==="decider"){
@@ -540,7 +549,7 @@ function circuits(){
    }else if(type==="valve"){
     update(s,{enabled:v>=read(s,"threshold",1),value:v});
    }else if(["fluid-pump","gas-vent","liquid-outlet",
-    "phase-filter","gas-filter","liquid-filter"].includes(type)){
+    "phase-filter","gas-filter","liquid-filter","pipe-gate"].includes(type)){
     const side=type==="gas-vent"?[s.x,s.y+1]:[s.x,s.y-1];
     const signal=s.data?.signal||"enable";
     const sensed=input(side[0],side[1],signal);
@@ -568,6 +577,7 @@ api.triggers.register("iono:industrial-cycle",{intervalMs:250,sequentialRunCount
   api.structures.forEachOfType(id(kind),s=>guard(kind,()=>filter(s,kind)));
  for(const kind of ["fluid-pump","gas-vent","liquid-outlet"])
   api.structures.forEachOfType(id(kind),s=>guard(kind,()=>transport(s,kind)));
+ api.structures.forEachOfType(id("pipe-gate"),s=>guard("pipe gate",()=>pipeGate(s)));
  api.structures.forEachOfType(id("crystal-grower"),s=>guard("grow crystal",()=>growCrystal(s)));
  api.structures.forEachOfType(id("crystal-cutter"),s=>guard("cut crystal",()=>cutCrystal(s)));
  api.structures.forEachOfType(id("wafer-processor"),s=>guard("prepare wafers",()=>prepareWafers(s)));
@@ -582,7 +592,7 @@ api.triggers.register("iono:industrial-cycle",{intervalMs:250,sequentialRunCount
 // starts after late refining. New nodes own their own unlock definitions.
 const ta=id("automation"),t8=id("tier8"),t9=id("tier9");
 const controls=["box","tank","wire","decider","arithmetic","memory",
- "phase-filter","gas-filter","liquid-filter","fluid-pump","gas-vent","liquid-outlet",
+ "phase-filter","gas-filter","liquid-filter","fluid-pump","gas-vent","liquid-outlet","pipe-gate",
  "power-headroom","adapter","valve","probe"].map(id);
 const production8=["crystal-grower","crystal-cutter"].map(id);
 const production9=["wafer-processor","patterning-bench","copper-plater","chip-assembler","chip-carrier","chip-controller"].map(id);
