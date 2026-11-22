@@ -41,7 +41,8 @@ function fixture(){
   },
   tech:{registerDefinition:(id,d)=>nodes.set(id,d),
     registerNode:()=>{},conservatory:{appendUnlock:()=>{}}},
-  events:{on:()=>{}},ui:{toast:()=>{}},time:{getElapsedMs:()=>Date.now()}
+  events:{on:()=>{}},ui:{toast:()=>{}},time:{getElapsedMs:()=>Date.now()},
+  energy:{getNetworkFreeCapacityAtCell:()=>3500}
  };
  const enums={MatterType:{Powder:1,Liquid:2,Gas:3},Tech:{SignalDevices:1}};
  vm.runInNewContext(source,{sandkit:{api,enums},console});
@@ -130,4 +131,16 @@ test('separator refuses to destroy solids or route into blocked outlets',()=>{
  f.run();
  assert.equal(f.mut.length,2);
  assert.equal(f.mut.find(x=>x.x===9).type,'oxygen');
+});
+
+test('local power headroom sensor publishes energy capacity to cable',()=>{
+ const f=fixture();
+ const power=f.place('power-headroom',8,10);
+ f.place('wire',9,10);
+ f.place('decider',10,10,{signal:'charge-headroom',operator:'>=',threshold:3000,outputSignal:'enable',amount:1});
+ f.place('wire',11,10);
+ const adapter=f.place('adapter',12,10,{signal:'enable',operator:'>',threshold:0});
+ f.run();f.run();f.run();
+ assert.equal(power.data.value,3500);
+ assert.equal(adapter.data.active,true);
 });
