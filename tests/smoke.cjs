@@ -40,11 +40,11 @@ function fixture(){
    targets:{register:(id,fn)=>targets.set(id,fn)}
   },
   tech:{registerDefinition:(id,d)=>nodes.set(id,d),
-    registerNode:()=>{},conservatory:{appendUnlock:()=>{}}},
+    registerNode:(id,d)=>nodes.set(id,d),conservatory:{appendUnlock:()=>{}}},
   events:{on:()=>{}},ui:{toast:()=>{}},time:{getElapsedMs:()=>Date.now()},
   energy:{getNetworkFreeCapacityAtCell:()=>3500}
  };
- const enums={MatterType:{Powder:1,Liquid:2,Gas:3},Tech:{SignalDevices:1}};
+ const enums={MatterType:{Powder:1,Liquid:2,Gas:3},Tech:{SignalDevices:1,Refining8:2}};
  vm.runInNewContext(source,{sandkit:{api,enums},console});
  const place=(type,x,y,extra={})=>{
   const d=structures.get('iono-'+type);
@@ -59,7 +59,9 @@ function fixture(){
 test('registers 8 real products, 2 tiers and industrial processors',()=>{
  const f=fixture();
  assert.equal(f.elements.size,8);
+ assert.ok(f.nodes.has('iono-automation'));
  assert.ok(f.nodes.has('iono-tier8')&&f.nodes.has('iono-tier9'));
+ assert.deepEqual(f.nodes.get('iono-automation').unlocks.structures.includes('iono-phase-filter'),true);
  for(const kind of ['wafer-furnace','etcher','module-assembler','etchant-bath','reclaimer','core-forge','supervisor-assembler'])
  assert.ok(f.structures.has('iono-'+kind));
 });
