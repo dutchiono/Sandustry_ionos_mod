@@ -79,7 +79,9 @@ function fixture(){
 test('registers real ingot terrain, no chip pixels, and vanilla silicon input remains',()=>{
  const f=fixture();
  assert.ok(f.terrains.has('iono-silicon-ingot'));
- assert.equal(f.elements.size,0);
+ assert.equal(f.elements.size,1);
+ assert.ok(f.recipes.has('smelter'));
+ assert.equal(f.recipes.get('smelter').input,'silicon');
  assert.ok(f.structures.has('iono-crystal-cutter'));
  assert.ok(f.structures.has('iono-chip-carrier'));
  assert.equal(f.structures.has('iono-wafer-furnace'),false);
@@ -88,24 +90,24 @@ test('registers real ingot terrain, no chip pixels, and vanilla silicon input re
 });
 test('each ingot terrain cell consumes exactly one existing silicon pixel',()=>{
  const f=fixture(),g=f.place('crystal-grower',10,10,{maxMass:8});
- f.put(9,10,'silicon');f.run();
+ f.put(9,10,'iono-purified-silicon');f.run();
  assert.equal(f.get(9,10),undefined);
  assert.equal(f.solid.get('11:9'),'iono-silicon-ingot');
  assert.equal(g.data.crystalMass,1);
  f.run();assert.equal(g.data.crystalMass,1);
- f.put(9,10,'silicon');f.run();
+ f.put(9,10,'iono-purified-silicon');f.run();
  assert.equal(f.solid.get('11:8'),'iono-silicon-ingot');
  assert.equal(g.data.crystalMass,2);
 });
 test('external demolition is observed; cutter only earns wafer for four actual cut cells',()=>{
  const f=fixture(),g=f.place('crystal-grower',10,10,{maxMass:4});
- for(let i=0;i<4;i++){f.put(9,10,'silicon');f.run();}
+ for(let i=0;i<4;i++){f.put(9,10,'iono-purified-silicon');f.run();}
  assert.equal(g.data.complete,true);assert.equal(f.solid.size,4);
  const cut=f.place('crystal-cutter',12,10);
  f.run();assert.equal(cut.data.wafers,0);assert.equal(f.solid.size,3);
  // Cutter removes one per tick; no second wafer until four more cuts.
  f.run(3);assert.equal(cut.data.wafers,1);assert.equal(f.solid.size,0);
- f.put(9,10,'silicon');f.run();assert.equal(g.data.crystalMass,1);
+ f.put(9,10,'iono-purified-silicon');f.run();assert.equal(g.data.crystalMass,1);
  f.solid.clear();f.run();assert.equal(g.data.crystalMass,0);
 });
 test('chip fabrication consumes held workpieces, not spawned chip particles',()=>{
@@ -126,8 +128,8 @@ test('chip fabrication consumes held workpieces, not spawned chip particles',()=
 });
 test('blocked ingot space never consumes silicon',()=>{
  const f=fixture();f.place('crystal-grower',10,10);
- f.put(9,10,'silicon');f.put(11,9,'water');f.run();
- assert.equal(f.get(9,10),'silicon');assert.equal(f.solid.size,0);
+ f.put(9,10,'iono-purified-silicon');f.put(11,9,'water');f.run();
+ assert.equal(f.get(9,10),'iono-purified-silicon');assert.equal(f.solid.size,0);
 });
 test('binary numerical control pipeline can read local physical storage',()=>{
  const f=fixture(),box=f.place('box',8,10,{material:'silicon',stored:50,value:50,release:0});
