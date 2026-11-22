@@ -153,8 +153,15 @@ fixture("chip-carrier","Chip Carrier",
 const WORKPIECE_NAMES=["crystal-grower","crystal-cutter","wafer-processor",
  "patterning-bench","chip-assembler","chip-carrier"];
 function neighboring(structure,name,dx,dy){
- const x=structure.x+dx,y=structure.y+dy;
- return api.structures.isTypeAtCell(x,y,id(name))?api.structures.getAtCell(x,y):null;
+ // Find the nearest *physically adjacent* workpiece fixture along this axis.
+ // Multi-cell fixture anchors may be several cells from the adjoining tool.
+ for(let distance=1;distance<=4;distance++){
+  const x=structure.x+dx*distance,y=structure.y+dy*distance;
+  if(api.structures.isTypeAtCell(x,y,id(name)))
+   return api.structures.getAtCell(x,y);
+  if(api.structures.getAtCell(x,y))return null; // another structure blocks transfer
+ }
+ return null;
 }
 // For any completed crystal, source data represents ONE solid body,
 // not 64 individual crystals. Cutting yields an integer count of wafer objects.
@@ -184,7 +191,7 @@ function prepareWafers(s){
  if(s.data?.enabled===false)return;
  const saw=neighboring(s,"crystal-cutter",-1,0);
  if(!saw||read(saw,"wafers")<1)return;
- // Existing oxygen stream is essential, and Florinol powers resist coating.
+ // Existing oxygen stream is essential; Florinol is a fictional photoresist feedstock.
  const oxygen=[s.x,s.y-1],florinol=[s.x,s.y+1];
  api.grid.mutate(w=>{
   if(read(saw,"wafers")<1||!isPixel(...oxygen,"oxygen")||!isPixel(...florinol,"florinol"))return;
