@@ -235,7 +235,7 @@ function circuits(){
  groups.forEach((g,n)=>g.forEach(k=>lastSignals.set(k,current[n])));
 }
 api.signals.registerSenderType(id("adapter"),s=>!!s.data?.active);
-api.triggers.register("iono:industrial-cycle",{intervalMs:500,callback:()=>{
+api.triggers.register("iono:industrial-cycle",{interval:30,sequentialRuns:1,extra:{},callback:()=>{
  for(const kind of ["box","tank"])api.structures.forEachOfType(id(kind),s=>guard(kind,()=>storage(s)));
  api.structures.forEachOfType(id("probe"),s=>guard("probe",()=>probe(s)));
  api.structures.forEachOfType(id("valve"),s=>guard("valve",()=>valve(s)));
