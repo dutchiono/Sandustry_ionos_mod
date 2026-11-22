@@ -117,11 +117,11 @@ function fixture(name,label,description,shape,defaults,order){
   render:{imageName:"collector",size:{width:shape[0].length,height:shape.length}}
  });
 }
-fixture("crystal-grower","Silicon Crystal Growth Fixture",
- "Consume Purified Silicon LEFT; grow one 3-cell-wide solid ingot ABOVE/RIGHT. Cutter FOUR cells RIGHT.",
- [[1]],{crystalMass:0,maxMass:12,complete:false,harvesting:false,enabled:true,value:0},210);
-fixture("crystal-cutter","Crystal Cutter",
- "Slice the physical 3-wide ingot anchored FOUR cells LEFT; one complete row makes one held wafer.",
+fixture("crystal-grower","Silicon Ingot Extruder",
+ "Feeds Purified Silicon from LEFT into a THREE-high ingot that advances RIGHT. Cutter SEVEN cells RIGHT.",
+ [[1]],{crystalMass:0,feedBuffer:0,complete:false,enabled:true,value:0},210);
+fixture("crystal-cutter","Crystal Face Cutter",
+ "Cut only a solid ingot reaching this tool's LEFT face. Each THREE-cell cross-section yields one held wafer.",
  [[1]],{wafers:0,cutProgress:0,cutCount:0,enabled:true,value:0},211);
 fixture("wafer-processor","Wafer Preparation Bench",
  "Prepare held wafers using physical Oxygen and Florinol; output held coated wafers.",
@@ -163,62 +163,84 @@ function neighboring(structure,name,dx,dy){
  }
  return null;
 }
-// Crystal occupies the empty vertical column immediately right of the fixture.
-// The ingot remains visible/solid even after the fixture is removed; mining it
-// changes real terrain and therefore invalidates the source inventory on next scan.
+// Real horizontal extrusion: a THREE-high ingot advances one physical cell RIGHT
+// for each THREE Purified Silicon feed pixels. It is not transferred magically.
 const INGOT=id("silicon-ingot");
-const CRYSTAL_WIDTH=3;
-function ingotLimit(s){return Math.max(3,Math.floor(cap(s.data?.maxMass,3,48)/CRYSTAL_WIDTH)*CRYSTAL_WIDTH);}
-function ingotPoint(s,index){
- return [s.x+1+(index%CRYSTAL_WIDTH),
-  s.y-1-Math.floor(index/CRYSTAL_WIDTH)];
-}
-function crystalCells(s){
- const out=[],max=ingotLimit(s);
- for(let i=0;i<max;i++){
-  const xy=ingotPoint(s,i);
-  if(!api.terrains.isTypeAtCell(...xy,INGOT))break;
-  out.push(xy);
+const INGOT_HEIGHT=3, INGOT_MAX_COLUMNS=6, CUTTER_OFFSET=INGOT_MAX_COLUMNS+1;
+function extrusionCell(extruder,col,row){return [extruder.x+col, extruder.y-1-row];}
+function solidAt(x,y){return api.terrains.isTypeAtCell(x,y,INGOT);}
+function getBar(extruder){
+ let length=0,jammed=false,seenGap=false;
+ for(let col=1;col<=INGOT_MAX_COLUMNS;col++){
+  let present=0;
+  for(let row=0;row<INGOT_HEIGHT;row++)
+   if(solidAt(...extrusionCell(extruder,col,row)))present++;
+  if(present===INGOT_HEIGHT){
+   if(seenGap)jammed=true;
+   else length++;
+  }else if(present!==0){jammed=true;seenGap=true;}
+  else seenGap=true;
  }
- return out;
+ return {length,jammed};
 }
 function growCrystal(s){
  if(s.data?.enabled===false)return;
- const cells=crystalCells(s),max=ingotLimit(s);
- if(s.data?.harvesting){
-  if(cells.length===0)update(s,{harvesting:false,crystalMass:0,complete:false,value:0});
-  return;
- }
- const count=cells.length,complete=count>=max;
- if(read(s,"crystalMass")!==count||!!s.data?.complete!==complete)
-  update(s,{crystalMass:count,complete,value:count});
- if(complete)return;
- const inlet=[s.x-1,s.y],dest=ingotPoint(s,count);
+ const bar=getBar(s),buffer=cap(s.data?.feedBuffer,0,INGOT_HEIGHT);
+ if(bar.jammed)return; // missing, damaged, or obstructed ingot: fail closed
+ const inlet=[s.x-1,s.y];
+ // Do not swallow more silicon once full; the cutter must cut the leading face.
+ if(bar.length===INGOT_MAX_COLUMNS)return;
  api.grid.mutate(w=>{
-  // An occupied growth cell blocks production, preserving the Silicon input.
-  if(!isPixel(...inlet,id("purified-silicon"))||!empty(...dest))return;
+  if(!isPixel(...inlet,id("purified-silicon")))return;
+  // If a complete cross-section has been fed, push the whole solid ingot
+  // EXACTLY ONE CELL to the right, then form a new column at the nozzle.
+  if(buffer+1===INGOT_HEIGHT){
+   for(let row=0;row<INGOT_HEIGHT;row++){
+    const dest=extrusionCell(s,bar.length+1,row);
+    if(!empty(...dest) || api.structures.getAtCell(...dest))return;
+   }
+   // The entire motion occurs as a single mutation transaction. Moving from
+   // front to back avoids overwriting any live body cells.
+   for(let col=bar.length;col>=1;col--){
+    for(let row=0;row<INGOT_HEIGHT;row++){
+     const from=extrusionCell(s,col,row),to=extrusionCell(s,col+1,row);
+     if(!solidAt(...from))return;
+     w.terrains.removeAtCell(...from);
+     w.terrains.createAtCell(...to,INGOT);
+    }
+   }
+   for(let row=0;row<INGOT_HEIGHT;row++)
+    w.terrains.createAtCell(...extrusionCell(s,1,row),INGOT);
+  }
+  // Material conservation: exactly three input pixels per extruded section.
   w.elements.removeAtCell(...inlet);
-  w.terrains.createAtCell(...dest,INGOT);
-  update(s,{crystalMass:count+1,complete:count+1>=max,value:count+1});
+  update(s,{feedBuffer:(buffer+1)%INGOT_HEIGHT,
+   crystalMass:(bar.length+(buffer+1===INGOT_HEIGHT?1:0))*INGOT_HEIGHT,
+   complete:bar.length+1>=INGOT_MAX_COLUMNS&&buffer+1===INGOT_HEIGHT,
+   value:(bar.length+(buffer+1===INGOT_HEIGHT?1:0))*INGOT_HEIGHT});
  });
 }
-config("crystal-grower",[integer("maxMass","Ingot volume (multiple of 3)",12,3,48)]);
 function cutCrystal(s){
  if(s.data?.enabled===false)return;
- const growth=neighboring(s,"crystal-grower",-1,0);
- if(!growth||(!growth.data?.complete&&!growth.data?.harvesting))return;
- const cells=crystalCells(growth);
- if(!cells.length){update(growth,{harvesting:false,complete:false,crystalMass:0,value:0});return;}
- // Read actual world terrain: never mint a wafer from a stored mass counter.
- const last=cells[cells.length-1],progress=cap(s.data?.cutProgress,0,CRYSTAL_WIDTH-1);
+ // The cutter must sit at the actual end of the extrusion track.
+ const sourceX=s.x-CUTTER_OFFSET;
+ if(!api.structures.isTypeAtCell(sourceX,s.y,id("crystal-grower")))return;
+ const extruder=api.structures.getAtCell(sourceX,s.y);
+ if(!extruder)return;
+ const col=INGOT_MAX_COLUMNS;
+ const progress=cap(s.data?.cutProgress,0,INGOT_HEIGHT-1);
+ const face=extrusionCell(extruder,col,progress);
+ // Cutter does not work on incomplete bars, remote data or invented geometry.
+ if(!solidAt(...face))return;
  api.grid.mutate(w=>{
-  if(!api.terrains.isTypeAtCell(...last,INGOT))return;
-  w.terrains.removeAtCell(...last);
-  const next=progress+1,makeWafer=next===CRYSTAL_WIDTH,waferCount=read(s,"wafers")+(makeWafer?1:0);
-  update(s,{cutProgress:makeWafer?0:next,wafers:waferCount,
-   cutCount:read(s,"cutCount")+1,value:waferCount});
-  update(growth,{crystalMass:cells.length-1,complete:false,
-    harvesting:cells.length>1,value:cells.length-1});
+  if(!solidAt(...face))return;
+  w.terrains.removeAtCell(...face);
+  const end=progress+1===INGOT_HEIGHT;
+  const wafers=read(s,"wafers")+(end?1:0);
+  update(s,{cutProgress:end?0:progress+1,wafers,
+   cutCount:read(s,"cutCount")+1,value:wafers});
+  if(end)update(extruder,{crystalMass:Math.max(0,read(extruder,"crystalMass")-INGOT_HEIGHT),complete:false,
+   value:Math.max(0,read(extruder,"crystalMass")-INGOT_HEIGHT)});
  });
 }
 function prepareWafers(s){
