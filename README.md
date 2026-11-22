@@ -27,7 +27,9 @@ An experimental Sandkit mod for Sandustry 0.6.x, built around **real pixel physi
 - **Signal Link Adapter** bridges a numerical condition into native boolean Sandustry signal links.
 - **Area Probe** counts nearby actual pixels.
 - **Valve** controls material flow.
-- **Gas/Liquid Separator** routes selected gases or liquids, including Oxygen and Hydrogen, to separate exits.
+- **Gas Filter, Liquid Filter and Combined Separator** route selected gases or liquids, including Oxygen and Hydrogen, to distinct physical outlets. All can be enabled by a physical signal cable.
+- **Circuit Pump, Gas Vent and Liquid Outlet** move only the chosen fluid phase through their actual adjacent world cells; blocked outlets do not consume matter.
+- **Circuit Pipe Gate** controls an adjacent **vanilla pipe segment** with the documented Sandkit pipe API, providing circuit on/off for real pipe-linked pumps and vents.
 - **Power Headroom Sensor** reads its physically attached network where the Sandkit energy API permits.
 
 ### Research
@@ -92,4 +94,4 @@ GitHub Actions runs these automatically.
 - Finishing a chip adds device inventory to a structure; it doesn't create a loose inventory item in the player's toolbox.
 - In-game research identifiers, visuals and balance will need adjustment if the game's 0.6.x structures differ from the documented APIs.
 
-**Documentation:** [Current recipe and construction guide](docs/BUILD_AND_TEST.md) · [Vanilla integration rationale](docs/VANILLA_PROCESSING_ARCHITECTURE.md) · [Reference progression research](docs/TIERS_8_TO_11.md)
+**Documentation:** [Fluid flow and circuit guide](docs/FLOW_CONTROL.md) · [Current recipe and construction guide](docs/BUILD_AND_TEST.md) · [Vanilla integration rationale](docs/VANILLA_PROCESSING_ARCHITECTURE.md) · [Reference progression research](docs/TIERS_8_TO_11.md)
