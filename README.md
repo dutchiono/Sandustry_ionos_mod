@@ -1,5 +1,8 @@
 # Sandustry — Iono's Industrial Expansion
 
+> **Design correction (2026-11-22):** [Tiers 8–11 vanilla-first architecture](docs/TIERS_8_TO_11.md) is the authoritative progression and chemistry specification. The fixed two-input recipes still in `main.js` are legacy experimental scaffolding, **not approved production recipes**. In particular, Florinol is proposed as a fictional photoresist feedstock, existing Silicon already comes from the vanilla Reaction Chamber, and Aura is currency rather than a physical crafting ingredient. These discrepancies must be eliminated before release.
+
+
 **Repository:** https://github.com/dutchiono/Sandustry_ionos_mod
 
 Sandkit mod adding Tier 8 and Tier 9 industry, built on the EXISTING Sandustry economy: Silicon, Acid, Florinol, Aura and Nickel. It does not introduce another starter ore or resource-collection contracts.
