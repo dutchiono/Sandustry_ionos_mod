@@ -123,8 +123,14 @@ function fluidFilter(s){
  update(s,{processed:read(s,"processed")+1,value:pass?1:0});
 }
 api.signals.targets.register(id("fluid-filter"),(s,p)=>update(s,{enabled:!!p.combined}));
-// Multi-cell fixture workpieces: the crystal is one large non-falling solid object,
-// represented by persistent machine data, NOT by a powder pixel.
+// Growing Silicon is WORLD TERRAIN, not a powder or a hidden counter.
+// Each real Silicon particle fed to the fixture adds one contiguous, solid cell.
+api.terrains.register({
+ id:id("silicon-ingot"),name:"Single-crystal Silicon",description:"Growable, cuttable silicon ingot.",
+ hp:90,metaColor:0x9db6c9,colorHSL:[205,24,70],noShadow:false
+});
+// The grower anchors an actual terrain column that rises above it.
+// Chips and wafers remain discrete inventory, never sand particles.
 function fixture(name,label,description,shape,defaults,order){
  api.structures.register({
   id:id(name),name:label,description,categoryKey:"industrial",order,
@@ -133,11 +139,11 @@ function fixture(name,label,description,shape,defaults,order){
  });
 }
 fixture("crystal-grower","Silicon Crystal Growth Fixture",
- "Consume physical Silicon to grow ONE solid crystal. Crystal mass is stored on this fixture.",
- [[1,1,1],[1,1,1],[1,1,1]],{crystalMass:0,maxMass:64,complete:false,enabled:true,value:0},210);
+ "Consume Silicon from LEFT; grow one visible solid ingot upward at x+1. CUT with a cutter two cells RIGHT.",
+ [[1]],{crystalMass:0,maxMass:16,complete:false,enabled:true,value:0},210);
 fixture("crystal-cutter","Crystal Cutter",
- "Cut a completed single crystal from the growth fixture immediately LEFT into discrete wafers.",
- [[1]],{wafers:0,dust:0,cutCount:0,enabled:true,value:0},211);
+ "Slice the physical ingot anchored TWO cells LEFT; four crystal cells make one discrete wafer.",
+ [[1]],{wafers:0,cutProgress:0,cutCount:0,enabled:true,value:0},211);
 fixture("wafer-processor","Wafer Preparation Bench",
  "Prepare held wafers using physical Oxygen and Florinol; output held coated wafers.",
  [[1]],{coated:0,oxidized:0,enabled:true,value:0},212);
@@ -163,29 +169,51 @@ function neighboring(structure,name,dx,dy){
  }
  return null;
 }
-// For any completed crystal, source data represents ONE solid body,
-// not 64 individual crystals. Cutting yields an integer count of wafer objects.
+// Crystal occupies the empty vertical column immediately right of the fixture.
+// The ingot remains visible/solid even after the fixture is removed; mining it
+// changes real terrain and therefore invalidates the source inventory on next scan.
+const INGOT=id("silicon-ingot");
+function crystalCells(s){
+ const out=[],max=cap(s.data?.maxMass,4,32),x=s.x+1;
+ for(let i=0;i<max;i++){
+  const y=s.y-1-i;
+  if(!api.terrains.isTypeAtCell(x,y,INGOT))break;
+  out.push([x,y]);
+ }
+ return out;
+}
 function growCrystal(s){
- if(s.data?.enabled===false||s.data?.complete)return;
- const mass=read(s,"crystalMass"),max=cap(s.data?.maxMass,8,512);
- if(mass>=max){update(s,{complete:true});return;}
- const inlet=[s.x-1,s.y];
+ if(s.data?.enabled===false)return;
+ const cells=crystalCells(s),max=cap(s.data?.maxMass,4,32);
+ const count=cells.length,complete=count>=max;
+ if(read(s,"crystalMass")!==count||!!s.data?.complete!==complete)
+  update(s,{crystalMass:count,complete,value:count});
+ if(complete)return;
+ const inlet=[s.x-1,s.y],dest=[s.x+1,s.y-1-count];
  api.grid.mutate(w=>{
-  if(!isPixel(...inlet,"silicon"))return;
+  // An occupied growth cell blocks production, preserving the Silicon input.
+  if(!isPixel(...inlet,"silicon")||!empty(...dest))return;
   w.elements.removeAtCell(...inlet);
-  const next=mass+1;update(s,{crystalMass:next,complete:next>=max,value:next});
+  w.terrains.createAtCell(...dest,INGOT);
+  update(s,{crystalMass:count+1,complete:count+1>=max,value:count+1});
  });
 }
 function cutCrystal(s){
  if(s.data?.enabled===false)return;
  const growth=neighboring(s,"crystal-grower",-1,0);
- if(!growth||!growth.data?.complete)return;
- const mass=read(growth,"crystalMass"),yieldWafers=Math.floor(mass/4);
- if(yieldWafers<1)return;
- update(growth,{crystalMass:0,complete:false,value:0});
- update(s,{wafers:read(s,"wafers")+yieldWafers,
-   dust:read(s,"dust")+(mass-yieldWafers*4),
-   cutCount:read(s,"cutCount")+1,value:read(s,"wafers")+yieldWafers});
+ if(!growth)return;
+ const cells=crystalCells(growth);
+ if(!cells.length)return;
+ // Read actual world terrain: never mint a wafer from a stored mass counter.
+ const last=cells[cells.length-1],progress=cap(s.data?.cutProgress,0,3);
+ api.grid.mutate(w=>{
+  if(!api.terrains.isTypeAtCell(...last,INGOT))return;
+  w.terrains.removeAtCell(...last);
+  const next=progress+1,makeWafer=next===4,waferCount=read(s,"wafers")+(makeWafer?1:0);
+  update(s,{cutProgress:makeWafer?0:next,wafers:waferCount,
+   cutCount:read(s,"cutCount")+1,value:waferCount});
+  update(growth,{crystalMass:cells.length-1,complete:false,value:cells.length-1});
+ });
 }
 function prepareWafers(s){
  if(s.data?.enabled===false)return;
@@ -307,9 +335,9 @@ function circuits(){
  const input=(x,y,signal)=>{const n=bus(x,y);return n===undefined?0:old[n][signal]||0;};
  const output=(x,y,signal,v)=>{const n=bus(x,y);if(n===undefined)return;
   current[n][signal]=cap((current[n][signal]||0)+v,-1000000,1000000);};
- for(const type of ["box","tank","probe","power-headroom"]){
+ for(const type of ["box","tank","probe","power-headroom","chip-carrier"]){
   api.structures.forEachOfType(id(type),s=>{
-   const signal=s.data?.material||"florinol",v=read(s,"value");
+   const signal=type==="chip-carrier"?"chips":(s.data?.material||"florinol"),v=read(s,"value");
    for(const [dx,dy] of offsets)output(s.x+dx,s.y+dy,signal,v);
   });
  }
