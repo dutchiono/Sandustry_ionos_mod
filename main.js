@@ -11,7 +11,7 @@ const update=(s,x)=>api.structures.updateData(s,x);
 const isPixel=(x,y,m)=>api.elements.isTypeAtCell(x,y,m);
 const empty=(x,y)=>api.grid.isCellEmptyAtCell(x,y);
 function guard(label,fn){try{return fn();}catch(error){console.error("[Iono] "+label,error);return null;}}
-const materials=["florinol","silicon","acid","liquidNickel","auralite","water","sand","quartz","charcoal","oxygen","hydrogen"];
+const materials=["florinol","silicon","iono-purified-silicon","acid","liquidNickel","auralite","water","sand","quartz","charcoal","oxygen","hydrogen"];
 const opts=xs=>xs.map(value=>({label:value,value}));
 const choice=(key,label,def,values)=>({type:"choice",id:key,label,default:def,options:opts(values)});
 const integer=(key,label,def,min,max)=>({type:"integer",id:key,label,default:def,min,max});
@@ -123,6 +123,19 @@ function fluidFilter(s){
  update(s,{processed:read(s,"processed")+1,value:pass?1:0});
 }
 api.signals.targets.register(id("fluid-filter"),(s,p)=>update(s,{enabled:!!p.combined}));
+// Preserve vanilla Silicon manufacture: Quartz → Grinder → Silica,
+// then Silica + Charcoal → Silicon in the existing Reaction Chamber.
+// Purification is attached to the EXISTING heat-powered Smelter.
+api.elements.register({
+ id:id("purified-silicon"),name:"Purified Silicon",
+ description:"Heat-purified silicon feedstock for growing one solid ingot.",
+ matterType:enums.MatterType.Powder,density:5,
+ isGrabbable:true,isTransportable:true,
+ colors:{variants:[[175,185,198,255],[145,161,177,255]]}
+});
+guard("silicon smelter recipe",()=>api.structures.recipes.register("smelter",{
+ input:"silicon",outputs:[{elementType:id("purified-silicon"),chance:1}]
+}));
 // Growing Silicon is WORLD TERRAIN, not a powder or a hidden counter.
 // Each real Silicon particle fed to the fixture adds one contiguous, solid cell.
 api.terrains.register({
@@ -139,7 +152,7 @@ function fixture(name,label,description,shape,defaults,order){
  });
 }
 fixture("crystal-grower","Silicon Crystal Growth Fixture",
- "Consume Silicon from LEFT; grow one visible solid ingot upward at x+1. CUT with a cutter two cells RIGHT.",
+ "Consume Purified Silicon from LEFT; grow one visible solid ingot upward at x+1. CUT two cells RIGHT.",
  [[1]],{crystalMass:0,maxMass:16,complete:false,enabled:true,value:0},210);
 fixture("crystal-cutter","Crystal Cutter",
  "Slice the physical ingot anchored TWO cells LEFT; four crystal cells make one discrete wafer.",
@@ -192,7 +205,7 @@ function growCrystal(s){
  const inlet=[s.x-1,s.y],dest=[s.x+1,s.y-1-count];
  api.grid.mutate(w=>{
   // An occupied growth cell blocks production, preserving the Silicon input.
-  if(!isPixel(...inlet,"silicon")||!empty(...dest))return;
+  if(!isPixel(...inlet,id("purified-silicon"))||!empty(...dest))return;
   w.elements.removeAtCell(...inlet);
   w.terrains.createAtCell(...dest,INGOT);
   update(s,{crystalMass:count+1,complete:count+1>=max,value:count+1});
