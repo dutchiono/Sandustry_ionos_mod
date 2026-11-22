@@ -100,6 +100,40 @@ function filter(s){
   update(s,{[field]:read(s,field)+1,value:read(s,field)+1});
  });
 }
+// Selective fluid/gas filters. One physical particle enters LEFT and exits RIGHT.
+// A matching particle passes; an unmatched particle stays put (no deletion).
+// A configurable bypass can send rejected material DOWN instead.
+structure("fluid-filter","Fluid / Gas Filter",
+ "Filter selected liquids or gases. LEFT inlet, RIGHT accepted outlet, DOWN rejected outlet.",
+ {material:"water",mode:"allow",reject:"hold",signal:"enable",controlled:false,enabled:true,processed:0,value:0},
+ "logistics","collector");
+config("fluid-filter",[
+ choice("material","Filter material","water",materials.concat(["oxygen","hydrogen","sulfur-dioxide"])),
+ choice("mode","Selection","allow",["allow","block"]),
+ choice("reject","Rejected particles","hold",["hold","down"]),
+ choice("signal","Control signal","enable",["enable","calculated","florinol","silicon"]),
+ choice("controlled","Require circuit","false",["false","true"])
+]);
+function fluidFilter(s){
+ const inlet=[s.x-1,s.y],out=[s.x+1,s.y],reject=[s.x,s.y+1];
+ const desired=s.data?.material||"water",mode=s.data?.mode||"allow";
+ if(s.data?.controlled==="true" && !s.data?.enabled)return;
+ // A single material type per cell; test only known liquids/gases to avoid
+ // inadvertently routing solids through a fluid-specific filter.
+ const candidates=["water","florinol","acid","oxygen","hydrogen","sulfur-dioxide",
+ "iono-spent-etchant","iono-process-medium"];
+ const actual=candidates.find(m=>isPixel(...inlet,m));
+ if(!actual)return;
+ const pass=mode==="allow"?actual===desired:actual!==desired;
+ const destination=pass?out:(s.data?.reject==="down"?reject:null);
+ if(!destination || !empty(...destination))return;
+ api.grid.mutate(w=>{
+  if(!isPixel(...inlet,actual)||!empty(...destination))return;
+  w.elements.removeAtCell(...inlet);w.elements.createAtCell(...destination,actual);
+ });
+ update(s,{processed:read(s,"processed")+1,value:pass?1:0});
+}
+api.signals.targets.register(id("fluid-filter"),(s,p)=>update(s,{enabled:!!p.combined}));
 // Industrial recipes use two ACTUAL input pixels, one on left and one above.
 const MACHINES=[
 ["wafer-furnace","Wafer Furnace","silicon","charcoal","iono-wafer",8],
@@ -246,6 +280,7 @@ api.triggers.register("iono:industrial-cycle",{interval:30,sequentialRuns:1,extr
  api.structures.forEachOfType(id("probe"),s=>guard("probe",()=>probe(s)));
  api.structures.forEachOfType(id("power-headroom"),s=>guard("power meter",()=>powerMeter(s)));
  api.structures.forEachOfType(id("valve"),s=>guard("valve",()=>valve(s)));
+ api.structures.forEachOfType(id("fluid-filter"),s=>guard("fluid filter",()=>fluidFilter(s)));
  api.structures.forEachOfType(id("phase-filter"),s=>guard("phase filter",()=>filter(s)));
  for(const [short,,a,b,out] of MACHINES)
   api.structures.forEachOfType(id(short),s=>guard(short,()=>reaction(s,a,b,out)));
