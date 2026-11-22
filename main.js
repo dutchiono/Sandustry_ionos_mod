@@ -49,10 +49,15 @@ structure("adapter","Signal Link Adapter","Converts numeric LEFT cable into vani
  {signal:"enable",operator:">",threshold:0,active:false,value:0},"logistics","signalToggle");
 structure("valve","Signal Valve","Uses LEFT cable enable signal to move materials LEFT to RIGHT.",
  {signal:"enable",material:"florinol",threshold:1,enabled:false,value:0},"logistics","door");
+structure("phase-filter","Fluid / Gas Separator","Route chosen gas or liquid from LEFT to RIGHT; all other selected fluid/gas particles exit BELOW. Never destroys rejected material.",
+ {material:"oxygen",mode:"allow",enabled:true,passed:0,rejected:0,value:0},"logistics","collector");
 structure("probe","Area Probe","Count actual pixels in a bounded area; connect data cable.",
  {material:"florinol",radius:4,value:0});
 for(const [name,mat,size] of [["box","silicon",256],["tank","florinol",512]])
  config(name,[choice("material","Material",mat,materials),integer("capacity","Capacity",size,1,4096),integer("release","Release (0 or 1)",1,0,1)]);
+config("phase-filter",[
+ choice("material","Selected fluid/gas","oxygen",["oxygen","hydrogen","water","florinol","acid","sulfurDioxide","iono-spent-etchant","iono-process-medium"]),
+ choice("mode","Selected material route","allow",["allow","block"])]);
 config("probe",[choice("material","Material","florinol",materials),integer("radius","Radius",4,1,12)]);
 config("decider",[choice("signal","Input","florinol",materials.concat(["enable","calculated"])),
  choice("operator","Comparison","<",["<","<=","=",">",">=","!="]),
@@ -71,6 +76,31 @@ config("adapter",[choice("signal","Input","enable",["enable","calculated","flori
 config("valve",[choice("material","Material","florinol",materials),
  choice("signal","Input","enable",["enable","calculated","florinol","silicon"]),
  integer("threshold","Threshold",1,0,100000)]);
+// Physical two-way separator: LEFT feed, RIGHT accepted, BELOW rejected.
+// A non-matching particle is identified using the public resolved-type read API.
+// Only Liquid/Gas particles are routed, preserving solids in place.
+function filter(s){
+ if(s.data?.enabled===false)return;
+ const left=[s.x-1,s.y],right=[s.x+1,s.y],down=[s.x,s.y+1];
+ const raw=api.elements.getResolvedTypeAtCell(...left);
+ if(raw===null||raw===undefined)return;
+ const matter=api.elements.getMatterTypeAtCell(...left);
+ if(matter!==enums.MatterType.Liquid && matter!==enums.MatterType.Gas)return;
+ const material=api.elements.getIdByType(raw);
+ if(typeof material!=="string")return;
+ const chosen=s.data?.material||"oxygen",allow=s.data?.mode!=="block";
+ const accepted=(material===chosen)===allow;
+ const out=accepted?right:down;
+ if(!empty(...out))return;
+ api.grid.mutate(w=>{
+  const present=api.elements.getResolvedTypeAtCell(...left);
+  if(present!==raw||!empty(...out))return;
+  w.elements.removeAtCell(...left);
+  w.elements.createAtCell(...out,raw);
+ });
+ const field=accepted?"passed":"rejected";
+ update(s,{[field]:read(s,field)+1,value:read(s,field)+1});
+}
 // Industrial recipes use two ACTUAL input pixels, one on left and one above.
 const MACHINES=[
 ["wafer-furnace","Wafer Furnace","silicon","charcoal","iono-wafer",8],
@@ -209,6 +239,7 @@ api.triggers.register("iono:industrial-cycle",{intervalMs:500,callback:()=>{
  for(const kind of ["box","tank"])api.structures.forEachOfType(id(kind),s=>guard(kind,()=>storage(s)));
  api.structures.forEachOfType(id("probe"),s=>guard("probe",()=>probe(s)));
  api.structures.forEachOfType(id("valve"),s=>guard("valve",()=>valve(s)));
+ api.structures.forEachOfType(id("phase-filter"),s=>guard("phase filter",()=>filter(s)));
  for(const [short,,a,b,out] of MACHINES)
   api.structures.forEachOfType(id(short),s=>guard(short,()=>reaction(s,a,b,out)));
  api.structures.forEachOfType(id("orbital-terminal"),s=>guard("orbital terminal",()=>orbital(s)));
@@ -221,7 +252,7 @@ const tech9={name:"Tier 9: Autonomous Industry",description:"High-tier Aura and 
 guard("research 8",()=>{
  api.tech.registerDefinition(t8,tech8);
  api.tech.registerNode(t8,tech8,{parentId:enums.Tech.SignalDevices});
- api.tech.conservatory.appendUnlock(t8,{structures:["box","tank","wire","decider","arithmetic","memory",
+ api.tech.conservatory.appendUnlock(t8,{structures:["box","tank","wire","decider","arithmetic","memory","phase-filter",
  "adapter","valve","probe",...MACHINES.filter(m=>m[5]===8).map(m=>m[0])].map(id)});
 });
 guard("research 9",()=>{
