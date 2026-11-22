@@ -15,8 +15,9 @@ An experimental Sandkit mod for Sandustry 0.6.x, built around **real pixel physi
 - **Crystal Face Cutter:** place it **seven cells right of the extruder** so the six-column ingot reaches its cutting face. The cutter removes three real cells from the leading face, one per cycle; only then does it yield **one held wafer**. Missing cutter, obstruction, full track or damage halts extrusion without consuming extra feed.
 - **Wafer Preparation Bench** consumes held wafers, physical Oxygen and Florinol to make coated wafers (Florinol's photosensitive property is fictional).
 - **Exposure & Etching Bench** consumes coated wafers and Acid, makes patterned wafers and stores a spent-bath count.
-- **Chip Assembly Bench** consumes patterned wafers and Liquid Nickel to make **finished chip inventory objects**, not sand pixels.
-- **Chip Carrier** holds up to 64 finished chips.
+- **Copper Interconnect Plater** takes patterned wafers and Liquid Copper from the existing smelting economy to make held circuit wafers with conductive traces.
+- **Nickel Chip Packager** consumes circuit wafers and Liquid Nickel to make **finished packaged chips**, not sand pixels. Optional Liquid Gold from below makes a separately tracked gold-contact chip.
+- **Chip Carrier** holds up to 64 finished chips, keeping standard and gold-contact grades separate.
 - **Chip-Based Process Controller** physically takes one chip from an adjacent carrier; it reads a numerical sensor bus above and outputs a hysteretic enable signal to the cable on its right. This makes chip manufacture useful.
 
 ### Earlier automation
