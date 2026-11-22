@@ -252,18 +252,28 @@ api.triggers.register("iono:industrial-cycle",{interval:30,sequentialRuns:1,extr
  api.structures.forEachOfType(id("orbital-terminal"),s=>guard("orbital terminal",()=>orbital(s)));
  guard("numeric wiring",circuits);
 }});
-// New research nodes: Tier 8 then 9, tied to existing signal-device research.
-const t8=id("tier8"),t9=id("tier9");
-const tech8={name:"Tier 8: Instrumentation & Fabrication",description:"Wired control and Silicon-based manufacturing.",cost:18000};
-const tech9={name:"Tier 9: Autonomous Industry",description:"High-tier Aura and Florinol-based control cores.",cost:48000};
-guard("research 8",()=>{
- api.tech.registerDefinition(t8,tech8);
- api.tech.registerNode(t8,tech8,{parentId:enums.Tech.SignalDevices});
- api.tech.conservatory.appendUnlock(t8,{structures:["box","tank","wire","decider","arithmetic","memory","phase-filter","power-headroom",
- "adapter","valve","probe",...MACHINES.filter(m=>m[5]===8).map(m=>m[0])].map(id)});
-});
-guard("research 9",()=>{
- api.tech.registerDefinition(t9,tech9);api.tech.registerNode(t9,tech9,{parentId:t8});
- api.tech.conservatory.appendUnlock(t9,{structures:[...MACHINES.filter(m=>m[5]===9).map(m=>id(m[0])),id("orbital-terminal")]});
-});
-api.events.on("game:ready",()=>guard("welcome",()=>api.ui.toast("Iono Expansion: Tier 8 and 9 loaded")));
+// Research is split: practical automation comes earlier, semiconductor industry
+// starts after late refining. New nodes own their own unlock definitions.
+const ta=id("automation"),t8=id("tier8"),t9=id("tier9");
+const controls=["box","tank","wire","decider","arithmetic","memory","phase-filter",
+ "power-headroom","adapter","valve","probe"].map(id);
+const production8=MACHINES.filter(m=>m[5]===8).map(m=>id(m[0]));
+const production9=MACHINES.filter(m=>m[5]===9).map(m=>id(m[0]));
+guard("automation research",()=>api.tech.registerNode(ta,{
+ name:"Industrial Automation",description:"Instrument actual storage, flow, gases and power.",
+ branch:"logistics",cost:2400,currencyType:"gold",
+ requires:enums.Tech.SignalDevices,unlocks:{structures:controls}
+},{parentId:enums.Tech.SignalDevices}));
+guard("tier 8 research",()=>api.tech.registerNode(t8,{
+ name:"Tier 8: Instrumentation & Fabrication",
+ description:"Wafer manufacturing, acid processing and control modules.",
+ branch:"refining",cost:18000,currencyType:"gold",
+ requires:[enums.Tech.Refining8,ta],unlocks:{structures:production8}
+},{parentId:enums.Tech.Refining8}));
+guard("tier 9 research",()=>api.tech.registerNode(t9,{
+ name:"Tier 9: Autonomous Industry",
+ description:"Aura-driven control cores, supervisors and orbital supply terminal.",
+ branch:"refining",cost:48000,currencyType:"gold",
+ requires:t8,unlocks:{structures:[...production9,id("orbital-terminal")]}
+},{parentId:t8}));
+api.events.on("game:ready",()=>guard("welcome",()=>api.ui.toast("Iono Expansion loaded: control devices, Tier 8 and Tier 9.")));
