@@ -57,6 +57,12 @@ The cutter is **seven cells right** of the extruder: the ingot extends through t
 
 See [construction instructions](docs/BUILD_AND_TEST.md).
 
+## Production and consumption statistics
+
+The optional **Factory statistics** HUD button opens a Factorio-style production report with 1-minute, 5-minute and 1-hour rates, net changes, trends and a filterable material list. Storage movement and resource collection have their own categories, rather than being misrepresented as manufacturing. These are precise for **mod-owned processes**; Sandkit doesn't expose a confirmed global event for every vanilla crafting transaction, so vanilla recipes aren't claimed as tracked.
+
+See [production statistics guide](docs/PRODUCTION_STATISTICS.md) for exact accounting and what still requires API verification.
+
 ## Install and update
 
 Clone this repository into the local mods folder used by Sandustry, then select it in the game's Mods screen:
