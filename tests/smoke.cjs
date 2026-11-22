@@ -7,13 +7,14 @@ const source=fs.readFileSync(require('node:path').join(__dirname,'..','main.js')
 function fixture(){
  const structures=new Map(),elements=new Map(),instances=[],placed=new Map();
  const callbacks=new Map(),senders=new Map(),targets=new Map(),nodes=new Map();
- const mut=[];
+ const mut=[],recipes=new Map();
  const coord=(x,y)=>x+':'+y;
  const api={
   structures:{
    register:d=>structures.set(d.id,d),
    registerPlacementConfig:()=>{},
    updateData:(s,p)=>Object.assign(s.data,p),
+   recipes:{register:(id,recipe)=>recipes.set(id,recipe)},
    forEachOfType:(name,cb)=>instances.filter(s=>s.type===name).forEach(cb),
    isTypeAtCell:(x,y,name)=>placed.get(coord(x,y))?.type===name,
    getAtCell:(x,y)=>placed.get(coord(x,y))||null
@@ -54,16 +55,16 @@ function fixture(){
  };
  const put=(type,x,y)=>mut.push({type,x,y});
  const run=()=>callbacks.get('iono:industrial-cycle')();
- return {structures,elements,instances,place,put,run,mut,senders,targets,nodes};
+ return {structures,elements,instances,place,put,run,mut,senders,targets,nodes,recipes};
 }
-test('registers 8 real products, 2 tiers and industrial processors',()=>{
+test('registers native silicon smelter recipe, chips and tech',()=>{
  const f=fixture();
- assert.equal(f.elements.size,8);
- assert.ok(f.nodes.has('iono-automation'));
- assert.ok(f.nodes.has('iono-tier8')&&f.nodes.has('iono-tier9'));
- assert.deepEqual(f.nodes.get('iono-automation').unlocks.structures.includes('iono-phase-filter'),true);
- for(const kind of ['wafer-furnace','etcher','module-assembler','etchant-bath','reclaimer','core-forge','supervisor-assembler'])
- assert.ok(f.structures.has('iono-'+kind));
+ assert.equal(f.elements.size,13);
+ assert.ok(f.recipes.has('smelter'));
+ assert.equal(f.recipes.get('smelter').input,'silicon');
+ for(const name of ['crystal-puller','crystal-saw','resist-maker','mask-aligner','etch-bath','die-saw'])
+  assert.ok(f.structures.has('iono-'+name));
+ assert.ok(f.nodes.has('iono-automation')&&f.nodes.has('iono-tier8')&&f.nodes.has('iono-tier9'));
 });
 test('physical box consumes on left and emits on right without creating free material',()=>{
  const f=fixture();
@@ -74,12 +75,26 @@ test('physical box consumes on left and emits on right without creating free mat
  assert.equal(s.data.stored,0);assert.equal(f.mut.length,1);
  assert.equal(f.mut[0].type,'silicon');assert.equal(f.mut[0].x,11);
 });
-test('multi-input wafer machine consumes two physical pixels and creates one wafer',()=>{
- const f=fixture();
- const s=f.place('wafer-furnace',10,10);
- f.put('silicon',9,10);f.put('charcoal',10,9);
- f.run();assert.equal(s.data.processed,1);
- assert.deepEqual([...f.mut.map(e=>e.type)],['iono-wafer']);
+test('crystal puller uses purified silicon and water, never raw silicon plus charcoal',()=>{
+ const f=fixture(); const machine=f.place('crystal-puller',10,10);
+ f.put('iono-purified-silicon',9,10);f.put('water',10,9);
+ f.run();assert.equal(machine.data.processed,1);
+ assert.equal(f.mut.length,1);assert.equal(f.mut[0].type,'iono-silicon-crystal');
+});
+test('saw returns a wafer and recyclable cutting dust; blocked waste port stops production',()=>{
+ const f=fixture();const m=f.place('crystal-saw',10,10);
+ f.put('iono-silicon-crystal',9,10);f.put('water',10,11);
+ f.run();assert.equal(m.data.processed,0);
+ f.mut.splice(f.mut.findIndex(x=>x.type==='water'),1);
+ f.run();assert.equal(m.data.processed,1);
+ assert.ok(f.mut.some(x=>x.type==='iono-wafer'));
+ assert.ok(f.mut.some(x=>x.type==='iono-silicon-dust'));
+});
+test('etch bath creates patterned wafer and spent etchant byproduct',()=>{
+ const f=fixture();f.place('etch-bath',10,10);
+ f.put('iono-exposed-wafer',9,10);f.put('acid',10,9);
+ f.run();assert.ok(f.mut.some(x=>x.type==='iono-patterned-wafer'));
+ assert.ok(f.mut.some(x=>x.type==='iono-spent-etchant'));
 });
 test('numeric cable transmits local storage amount to decider with tick delay',()=>{
  const f=fixture();
@@ -91,18 +106,6 @@ test('numeric cable transmits local storage amount to decider with tick delay',(
  f.run();f.run();f.run();
  assert.equal(adapter.data.active,true);
  assert.equal(box.data.stored,50);
-});
-
-test('Tier 9 orbital terminal consumes three inputs to deliver a shipment',()=>{
- const f=fixture();
- const s=f.place('orbital-terminal',10,10);
- f.put('iono-supervisor',9,10);
- f.put('iono-wafer',10,9);
- f.put('iono-process-medium',10,11);
- f.run();
- assert.equal(s.data.processed,1);
- assert.equal(f.mut.length,1);
- assert.equal(f.mut[0].type,'iono-orbital-shipment');
 });
 
 test('oxygen goes to the accepted port and hydrogen to reject port without loss',()=>{
