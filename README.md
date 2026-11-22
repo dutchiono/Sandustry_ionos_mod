@@ -1,47 +1,66 @@
 # Sandustry — Iono's Industrial Expansion
 
-A Sandkit mod project targeting Sandustry 0.6.x: **better factory controls now, Tier 8 and Tier 9 built from existing industrial outputs**.
+**Repository:** https://github.com/dutchiono/Sandustry_ionos_mod
 
-> **Status: development / untested in-game.** This repository contains an initial playable API integration, tests, progression specifications, and explicit compatibility gaps. It is **not** a completed Tier 8–9 content release.
+Sandkit mod adding Tier 8 and Tier 9 industry, built on the EXISTING Sandustry economy: Silicon, Acid, Florinol, Aura and Nickel. It does not introduce another starter ore or resource-collection contracts.
 
-## Design principles
-- Extend **Florinol, Aura, Silicon, Acid, Nickel and power cells**, not arbitrary new ores.
-- Keep every measured quantity local to a *physical building*.
-- Connect control devices with the existing **Signal Linker** where possible.
-- Give players Factorio-like **deciders**, **arithmetic**, **memory**, **sensors**, and **actuators** without forcing them to use primitive gates.
-- Build processes that need flow, temperature, balancing and throughput, not tedious collection contracts.
+## Implemented in source
 
-## What is implemented
-- Placeable **Material Probe**: counts configured particles within a local bounded sampling window; emits ON/OFF over vanilla signal links.
-- Placeable **Decider**: takes a local Material Probe reading, compares to a configurable threshold, emits ON/OFF to existing receivers.
-- Placement configuration for material id, threshold, operator and sampling radius.
-- A small optional vanilla processing-machine signal receiver bridge (only where the runtime exposes processor enable/disable; see source).
-- In-game status toast and failure-isolated API registration.
-- Pure logic unit tests.
+### Control hardware
+- Inventory Box and Fluid Tank: locally stored pixel inventory, inlet on the left, outlet on the right, selectable material and storage capacity.
+- Data Cable: contiguous physical numerical signal network.
+- Decider Combinator: comparison threshold, signal selection and configured numeric output.
+- Arithmetic Combinator: add, subtract, multiply, divide, modulus, min and max.
+- Memory Combinator: latch, sum and max modes.
+- Area Probe: count actual pixels of a selected material near the probe.
+- Signal Link Adapter: converts numeric output to ON/OFF for Sandustry's native signal infrastructure.
+- Valve: conditionally transfers selected real material pixels, controlled by numerical signals.
 
-**Important:** The Material Probe observes pixels. It is **not** a storage box, liquid tank or battery sensor, and the decider's numerical input is **adjacency-based**, not a numerical wire. These are deliberate visible limitations pending engineering and in-game validation.
+### Tier 8: Instrumentation & Fabrication
+- Wafer Furnace: Silicon + Charcoal → Silicon Wafer.
+- Acid Etcher: Silicon Wafer + Acid → Logic Die.
+- Module Assembler: Logic Die + Nickel → Control Module.
+- Etchant Bath: Acid + Florinol → Spent Etchant.
+- Reclaimer: Spent Etchant + Florinol → Purified Process Medium.
+- Tier 8 research node and associated unlocks.
 
-## Install / pull
-Clone this repo as a local Sandustry mod folder (Steam build):
-```bash
+### Tier 9: Autonomous Industry
+- Control Core Forge: Control Module + Aura → Industrial Control Core.
+- Supervisor Assembler: Industrial Control Core + Purified Process Medium → Factory Supervisor.
+- Tier 9 research node and associated unlocks.
+
+Seven new particle materials have registered powder/liquid properties. Machines consume physical inputs from immediately LEFT and ABOVE, and place output immediately RIGHT. Each machine can be switched ON/OFF via Sandustry's Signal Linker. Obstructing output blocks processing.
+
+## Installation / updates
+
+Clone the repo into the local Sandustry mods directory shown by your version of the game's Mods interface:
+
+```sh
 git clone https://github.com/dutchiono/Sandustry_ionos_mod.git
 ```
-Copy the repository folder into your Sandustry local `mods/` directory (the folder containing `modinfo.json`), enable it in the Mods menu, then restart as required. To update, `git pull` in that folder.
 
-## Testing
-```bash
+To update later, run `git pull` from that folder.
+
+## Development checks
+
+```sh
 node --check main.js
 node --test tests/*.test.cjs
 ```
-API registrations and placement must still be tested **in Sandustry 0.6.x**, with a throwaway save first.
 
-## Documentation
-- [Current implementation and limits](docs/IMPLEMENTATION.md)
-- [Tier 8 / Tier 9 progression design](docs/PROGRESSION.md)
-- [Engineering backlog and acceptance tests](docs/ROADMAP.md)
-- [Vanilla mechanics and sources](docs/VANILLA_AUDIT.md)
+GitHub Actions also checks syntax and runs tests on every push.
 
-## Sources
+## API compatibility and caveats
+
+**Source implementation is complete for the systems listed above, but NOT verified in Sandustry 0.6.1.** In-game installation, sprite availability, material internal IDs, research-tree placement, and the game’s deferred mutation ordering still require runtime validation. Automated mocks cannot prove compatibility with the game engine. Development is ongoing; this should not be represented as a tested or finished gameplay release.
+
+Initial machines reuse existing graphics keys; custom sprite artwork, battery-charge telemetry, actual power/heat costs, advanced controller UI and a long-duration orbital megaproject are not included.
+
+There is a known limitation in the current physical storage implementation: deferred mutation of neighboring pixels and immediate stored-count changes can race if multiple neighboring machines act on the same pixel in the same tick. Avoid shared inlet locations until transaction validation is integrated.
+
+## References
+
+- [Build and operation guide](docs/BUILD_AND_TEST.md)
+- [Tier 8–9 industrial progression](docs/PROGRESSION.md)
+- [Development checklist](docs/ROADMAP.md)
 - [Official Sandkit API](https://sandustry.com/sandkit.html)
-- [Community API documentation](https://sandustry.dev/)
-- [Sandustry mod structure guide](https://sandustry.dev/wiki/adding-a-new-structure)
