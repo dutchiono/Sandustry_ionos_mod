@@ -1,59 +1,50 @@
-# Tier 8 & Tier 9 — Industrial Expansion design
+# Iono's Industrial Expansion — playable-scale progression
 
-**Design spec, not shipped gameplay.** Requires verifying actual 0.6.x vanilla IDs, quantities, recipes, unlock positions and asset hooks.
+This is the **current code-level production plan**, superseding the earlier speculative Tier 10–11 megafactory concepts.
 
-## Premise
-New industry consumes established intermediate and advanced products. Do not introduce a third starter ore. Florinol remains relevant as a large-scale fluid feedstock and Aura remains an expensive bottleneck, not a dead-end display resource.
+## Existing Sandustry unchanged
 
-## Tier 8: Instrumentation & Fabrication
-Entry: after Tier 7 orbital/silicon branch; integrate late Tier 5/6 sensors earlier so basic logic is accessible before silicon.
+Quartz → Grinder → Silica, then Silica + Charcoal in enclosed Reaction Chamber → Silicon.
 
-### Processes
-- **Silicon → Wafers** via precision furnace, with heat/cooling constraints.
-- **Wafers + Aura → Logic Dies** via lithography, with waste/defect output affected by temperature stability.
-- **Logic Dies + Nickel → Control Modules**: prerequisite for programmable industrial controllers.
-- **Acid** becomes a functional cleaning/etching reagent; unsafe overfeeding wastes product and demands recycle loops.
-- **Florinol** becomes process cooling/chemical feedstock with closed-loop recovery instead of arbitrary money sinks.
+Continue using vanilla Thermal Buffer and Smelter, pipes, portals, electricity, Florinol batteries, and the existing Auralite/Aura upgrade economy.
 
-### Unlockable equipment
-- Physical solid warehouse, liquid/gas vessels, metered collector adapter, power meter.
-- Decider, arithmetic combinator, memory cell, numeric signals and proper wiring visualization.
-- Signal controllable valves, pumps, conveyors, sorting devices, furnace and reaction chamber.
-- Wafer furnace, lithography station, acid recovery plant, module assembler.
+## Early automation (no semiconductor requirement)
 
-### Challenges
-- Manufacture logic dies consistently under temperature and pressure limits.
-- Recover most of the Florinol rather than consuming infinite fresh supplies.
-- Handle waste/Acid without contaminating adjacent streams.
-- Keep controls functional after save/load, disconnection and power loss.
+Unlocked via Industrial Automation, branching off Signal Devices:
+- Physical solid storage and liquid tank
+- Oxygen/Hydrogen/liquid separator
+- Data cable, area and battery-network sensor
+- Decider, Arithmetic and Memory combinators
+- Native ON/OFF Signal Link adapter and signal valve
 
-## Tier 9: Autonomous Industry
-Entry: manufacturing Control Modules at throughput, plus verified original Tier 7/8 milestone prerequisites.
+Building these first means players can stabilize basic plants *before* they manufacture chips.
 
-### Processes
-- **Logic Dies + Aura + Power Cells → Industrial Control Cores**.
-- **Florinol + Acid recycle → Ultra-pure Process Medium**; economic demand constrained by real losses.
-- **Control Cores + Nickel + advanced fluid processing → Factory Supervisors**.
-- Existing alloys and materials should be reused where possible. Any new intermediates must have real engineering function.
+## Tier 8 — Silicon Crystal Engineering
 
-### Equipment
-- Multi-input chemical plant with sensors and controllable routing.
-- Industrial controller with user-defined state machine, PID-like control (optional), circuit display/debugger.
-- High-volume storage, demand-based dispatch and load shedding.
-- Factory supervisory terminal reading physically wired sensors.
+1. Smelter (existing heat requirement): Silicon → Purified Silicon (new powder).
+2. Crystal Growth Fixture: converts one Purified Silicon **pixel** into one real **solid Silicon Ingot terrain cell**, growing upward in a single contiguous world-space column.
+3. Cutter: once the ingot reaches configured height, remove ingot cells one by one. **Four real cells cut produce one discrete wafer**. No wafer powder, no free instant crafting.
+4. Industrial control can regulate source stream and storage to avoid blocked ingots.
 
-### Megaproject
-**Autonomous Orbital Supply Plant**: maintain concurrent output quotas for Silicon components, processed Aura and Power Cells while respecting a limited power envelope. Not a one-off submit-100000-items quest. It should require real factory stability across several production cycles.
+Crystals are structures in the world, physically mined or cuttable, not invisible counter items.
 
-## Balance targets (provisional)
-- At least two viable factory layouts for every major process.
-- No irreversible softlocks or free material duplication.
-- Continued need for at least Florinol, Aura, Silicon, Nickel, Acid and existing energy.
-- Tier 8 broadens automation capacity; Tier 9 tests autonomous control.
-- Avoid raw numerical grind; rely on throughput stability, byproducts, energy and waste.
+## Tier 9 — Wafer and Chip Fabrication
 
-## What to avoid
-- Inventing new ores merely to lengthen the chain.
-- Artificial contracts or collectible counters as progression.
-- Global, telepathic storage measurements.
-- Calling a simulated local pixel-count a tank.
+1. Wafer Preparation Bench: one wafer (held) + Oxygen (pixel) + Florinol (pixel) → one **coated wafer workpiece**.
+2. Exposure & Etching Bench: one coated wafer + Acid pixel → one **patterned wafer workpiece**, plus one unit spent bath. Florinol's proposed photoresist behavior is *fictional Sandustry chemistry*.
+3. Chip Assembly Bench: one patterned wafer + Liquid Nickel pixel → **one manufactured chip**.
+4. Chip Carrier: physical device inventory (capacity 64).
+5. Chip-Based Process Controller: consumes **one chip from carrier**; then reads a physically wired numeric signal and outputs a hysteretic control condition.
+
+Unlike an arbitrary counter, a produced chip unlocks a genuinely useful factory-control device.
+
+## Future ideas, NOT part of this delivery
+
+- Visual moving saw animation, reusable etchant recovery.
+- A larger mask/deposition/oxidation photolithography model.
+- Optional higher tiers beyond the chip economy, only after validating whether further complexity makes the game more enjoyable.
+- More native-machine signal targets once tested against game 0.6.x.
+
+## Validation contract
+
+Code-level simulations cover physical ingot growth/cutting, blocked growth, wafer and chip transfer, chip consumption, filters, power reading, and numerical signal switching. **Live Sandustry integration is not validated until someone runs the build in-game.**
