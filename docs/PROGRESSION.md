@@ -23,7 +23,7 @@ Building these first means players can stabilize basic plants *before* they manu
 
 1. Smelter (existing heat requirement): Silicon → Purified Silicon (new powder).
 2. Crystal Growth Fixture: converts one Purified Silicon **pixel** into one real **solid Silicon Ingot terrain cell**, growing upward in a single contiguous world-space column.
-3. Cutter: once the ingot reaches configured height, remove ingot cells one by one. **Four real cells cut produce one discrete wafer**. No wafer powder, no free instant crafting.
+3. Cutter: once the ingot reaches configured height, remove ingot cells one by one. **Three real cells cut produce one discrete wafer**. No wafer powder, no free instant crafting.
 4. Industrial control can regulate source stream and storage to avoid blocked ingots.
 
 Crystals are structures in the world, physically mined or cuttable, not invisible counter items.
