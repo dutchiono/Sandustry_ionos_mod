@@ -147,3 +147,15 @@ test('filter routes oxygen right, hydrogen down and never consumes blocked parti
  assert.equal(f.get(10,11),'hydrogen');assert.equal(sep.data.rejected,1);
  f.put(9,10,'oxygen');f.run();assert.equal(f.get(9,10),'oxygen');
 });
+
+test('one held chip installs in controller once and unlocks hysteresis output',()=>{
+ const f=fixture();
+ const carrier=f.place('chip-carrier',8,10,{chips:1,value:1});
+ const controller=f.place('chip-controller',9,10,{low:50,high:100,signal:'florinol'});
+ f.place('wire',9,9); // sensor cable ABOVE controller
+ f.place('wire',10,10); // output cable RIGHT
+ f.place('tank',8,9,{material:'florinol',stored:20,value:20,release:0});
+ f.run();assert.equal(carrier.data.chips,0);assert.equal(controller.data.installed,true);
+ f.run(2);assert.equal(controller.data.active,true);
+ assert.equal(carrier.data.chips,0);
+});
