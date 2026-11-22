@@ -15,21 +15,18 @@ node --test tests/*.test.cjs
 
 These are mock/simulation tests, not proof of compatibility with the game binary.
 
-## Crystal production (Tier 8)
+## Crystal extrusion and cutting (Tier 8)
 
-1. Vanilla: Quartz enters a **Grinder**, becoming **Silica**.
-2. Vanilla: Silica and Charcoal are reacted in an enclosed **Reaction Chamber**, producing **Silicon**.
-3. Expansion attaches an additional recipe to the **existing heat-powered Smelter**: Silicon → **Purified Silicon**. The vanilla heat rules are expected to govern this recipe but still need direct game validation.
-4. Send individual Purified Silicon particles to the **LEFT side** of the single-cell **Silicon Crystal Growth Fixture**.
-5. The fixture adds **one actual solid Silicon Ingot terrain cell** across a three-cell-wide ingot immediately above/right of itself for each Purified Silicon particle received. The material forms one contiguous world-space solid column.
-6. Choose the ingot height (3–48 cells in complete rows, default 12). If the next growth cell is obstructed, production pauses without consuming the feed.
-7. Place a **Crystal Cutter** **four cells RIGHT** of the growth fixture (with the growth column between them).
-8. Once the crystal reaches its target height, the cutter begins removing the top terrain cell per cycle. Three cuts produce **one held wafer workpiece** in the cutter's local inventory. A 12-cell ingot therefore yields four wafers.
-9. The grower stays locked during harvesting so the crystal cannot be regrown while it is being sliced.
+1. Vanilla Quartz → Grinder → Silica; existing Reaction Chamber with Charcoal → Silicon.
+2. The existing heat-powered Smelter converts Silicon to Purified Silicon (recipe hook added by mod).
+3. Feed Purified Silicon to the **LEFT** of the Silicon Ingot Extruder.
+4. Every **three feed pixels** make one three-cell-high cross-section of solid world terrain. The extruder **advances every existing terrain cell exactly one cell right**, then forms the newest cross-section at its nozzle. This is physical linear extrusion, not magic growth elsewhere.
+5. Place the Crystal Face Cutter at **x = extruder x + 7**, on the same y. The six cells between the buildings hold the extruded ingot.
+6. The cutter must be physically touching a solid cross-section on its LEFT. It removes the leading face one terrain cell at a time; after **three actual cuts**, it adds one discrete wafer to its local output inventory.
+7. The extruder stalls while the bar fills the track; cutting clears space for another pushed cross-section. If a destination is obstructed it does not consume the third feed pixel. If terrain is partially damaged or broken, the extruder fails closed rather than duplicating it.
+8. Place the next processing bench immediately **RIGHT** of the cutter to receive held wafers, not sand pixels.
 
-Mining the solid ingot independently removes real geometry. The model rereads the actual terrain before processing; it cannot manufacture a wafer from an old mass counter.
-
-**Crystal is terrain. Wafer is a discrete workpiece. Chip is a manufactured device.** Neither wafers nor chips fall like powder or travel through liquid pipes.
+**Inventory law:** 3 purified-silicon pixels = one three-cell-high section = eventually one wafer. If partially cut, the remaining terrain plus the cutter's progress tracks the consumed work. Buffer state is stored on the extruder. No remote transport occurs.
 
 ## Wafer processing and chip production (Tier 9)
 
