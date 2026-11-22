@@ -1,38 +1,52 @@
-// API-contract simulation: no game binary required.
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const source=fs.readFileSync(require('node:path').join(__dirname,'..','main.js'),'utf8');
 function fixture(){
- const structures=new Map(),elements=new Map(),instances=[],placed=new Map();
- const callbacks=new Map(),senders=new Map(),targets=new Map(),nodes=new Map();
- const mut=[],recipes=new Map();
- const coord=(x,y)=>x+':'+y;
+ const structures=new Map(),elements=new Map(),terrains=new Map(),instances=[],particles=new Map(),solid=new Map();
+ const callbacks=new Map(),senders=new Map(),targets=new Map(),nodes=new Map(),recipes=new Map();
+ const coord=(x,y)=>x+':'+y,errors=[];
+ const target=(x,y)=>instances.find(s=>s.x===x&&s.y===y);
+ const cellType=(x,y)=>particles.get(coord(x,y));
+ const setCell=(x,y,m)=>particles.set(coord(x,y),m);
  const api={
   structures:{
    register:d=>structures.set(d.id,d),
    registerPlacementConfig:()=>{},
    updateData:(s,p)=>Object.assign(s.data,p),
-   recipes:{register:(id,recipe)=>recipes.set(id,recipe)},
    forEachOfType:(name,cb)=>instances.filter(s=>s.type===name).forEach(cb),
-   isTypeAtCell:(x,y,name)=>placed.get(coord(x,y))?.type===name,
-   getAtCell:(x,y)=>placed.get(coord(x,y))||null
+   isTypeAtCell:(x,y,name)=>target(x,y)?.type===name,
+   getAtCell:target,
+   recipes:{register:(id,def)=>recipes.set(id,def)}
+  },
+  terrains:{
+   register:d=>terrains.set(d.id,d),
+   isTypeAtCell:(x,y,id)=>solid.get(coord(x,y))===id
   },
   elements:{
    register:d=>elements.set(d.id,d),
-   isTypeAtCell:(x,y,id)=>mut.find(e=>e.x===x&&e.y===y)?.type===id,
-   getResolvedTypeAtCell:(x,y)=>mut.find(e=>e.x===x&&e.y===y)?.type??null,
+   isTypeAtCell:(x,y,id)=>cellType(x,y)===id,
+   getResolvedTypeAtCell:cellType,
    getIdByType:t=>t,
-   getMatterTypeAtCell:(x,y)=>{const t=mut.find(e=>e.x===x&&e.y===y)?.type;return ['oxygen','hydrogen'].includes(t)?3:['water','florinol','acid'].includes(t)?2:1;}
+   getMatterTypeAtCell:(x,y)=>{
+    const t=cellType(x,y);
+    return ['oxygen','hydrogen'].includes(t)?3:['water','florinol','acid'].includes(t)?2:1;
+   }
   },
   grid:{
-   isCellEmptyAtCell:(x,y)=>!mut.some(e=>e.x===x&&e.y===y),
+   isCellEmptyAtCell:(x,y)=>!particles.has(coord(x,y))&&!solid.has(coord(x,y)),
    getDimensions:()=>({widthCells:100,heightCells:100}),
-   mutate:fn=>fn({elements:{
-    removeAtCell:(x,y)=>{const ix=mut.findIndex(e=>e.x===x&&e.y===y);if(ix>=0)mut.splice(ix,1);},
-    createAtCell:(x,y,type)=>mut.push({x,y,type})
-   }})
+   mutate:fn=>fn({
+    elements:{
+     removeAtCell:(x,y)=>particles.delete(coord(x,y)),
+     createAtCell:(x,y,type)=>setCell(x,y,type)
+    },
+    terrains:{
+     createAtCell:(x,y,type)=>solid.set(coord(x,y),type),
+     removeAtCell:(x,y)=>solid.delete(coord(x,y))
+    }
+   })
   },
   triggers:{register:(id,d)=>callbacks.set(id,d.callback)},
   signals:{
@@ -40,127 +54,93 @@ function fixture(){
    setOutputAtCell:()=>{},
    targets:{register:(id,fn)=>targets.set(id,fn)}
   },
-  tech:{registerDefinition:(id,d)=>nodes.set(id,d),
-    registerNode:(id,d)=>nodes.set(id,d),conservatory:{appendUnlock:()=>{}}},
-  events:{on:()=>{}},ui:{toast:()=>{}},time:{getElapsedMs:()=>Date.now()},
+  tech:{
+   registerDefinition:(id,d)=>nodes.set(id,d),
+   registerNode:(id,d)=>nodes.set(id,d),
+   conservatory:{appendUnlock:()=>{}}
+  },
+  events:{on:()=>{}},
+  ui:{toast:()=>{}},
+  time:{getElapsedMs:()=>Date.now()},
   energy:{getNetworkFreeCapacityAtCell:()=>3500}
  };
  const enums={MatterType:{Powder:1,Liquid:2,Gas:3},Tech:{SignalDevices:1,Refining8:2}};
- vm.runInNewContext(source,{sandkit:{api,enums},console});
+ vm.runInNewContext(source,{sandkit:{api,enums},console:{error:(...parts)=>errors.push(parts.join(' '))}});
  const place=(type,x,y,extra={})=>{
   const d=structures.get('iono-'+type);
   assert.ok(d,'missing structure: '+type);
   const s={type:'iono-'+type,x,y,data:{...d.defaultData,...extra}};
-  instances.push(s);placed.set(coord(x,y),s);return s;
+  instances.push(s);return s;
  };
- const put=(type,x,y)=>mut.push({type,x,y});
- const run=()=>callbacks.get('iono:industrial-cycle')();
- return {structures,elements,instances,place,put,run,mut,senders,targets,nodes,recipes};
+ const run=(count=1)=>{for(let i=0;i<count;i++)callbacks.get('iono:industrial-cycle')();};
+ return {structures,elements,terrains,instances,place,run,errors,put:setCell,
+  get:(x,y)=>cellType(x,y),solid,particles,targets,nodes,recipes};
 }
-test('registers native silicon smelter recipe, chips and tech',()=>{
+test('registers real ingot terrain, no chip pixels, and vanilla silicon input remains',()=>{
  const f=fixture();
- assert.equal(f.elements.size,13);
- assert.ok(f.recipes.has('smelter'));
- assert.equal(f.recipes.get('smelter').input,'silicon');
- for(const name of ['crystal-puller','crystal-saw','resist-maker','mask-aligner','etch-bath','die-saw'])
-  assert.ok(f.structures.has('iono-'+name));
- assert.ok(f.nodes.has('iono-automation')&&f.nodes.has('iono-tier8')&&f.nodes.has('iono-tier9'));
+ assert.ok(f.terrains.has('iono-silicon-ingot'));
+ assert.equal(f.elements.size,0);
+ assert.ok(f.structures.has('iono-crystal-cutter'));
+ assert.ok(f.structures.has('iono-chip-carrier'));
+ assert.equal(f.structures.has('iono-wafer-furnace'),false);
+ assert.ok(f.nodes.has('iono-tier8')&&f.nodes.has('iono-tier9'));
+ assert.equal(f.errors.length,0);
 });
-test('physical box consumes on left and emits on right without creating free material',()=>{
+test('each ingot terrain cell consumes exactly one existing silicon pixel',()=>{
+ const f=fixture(),g=f.place('crystal-grower',10,10,{maxMass:8});
+ f.put(9,10,'silicon');f.run();
+ assert.equal(f.get(9,10),undefined);
+ assert.equal(f.solid.get('11:9'),'iono-silicon-ingot');
+ assert.equal(g.data.crystalMass,1);
+ f.run();assert.equal(g.data.crystalMass,1);
+ f.put(9,10,'silicon');f.run();
+ assert.equal(f.solid.get('11:8'),'iono-silicon-ingot');
+ assert.equal(g.data.crystalMass,2);
+});
+test('external demolition is observed; cutter only earns wafer for four actual cut cells',()=>{
+ const f=fixture(),g=f.place('crystal-grower',10,10,{maxMass:4}),cut=f.place('crystal-cutter',12,10);
+ for(let i=0;i<4;i++){f.put(9,10,'silicon');f.run();}
+ assert.equal(g.data.complete,true);assert.equal(f.solid.size,4);
+ f.run();assert.equal(cut.data.wafers,1);assert.equal(f.solid.size,3);
+ // Cutter removes one per tick; no second wafer until four more cuts.
+ f.run(3);assert.equal(cut.data.wafers,1);assert.equal(f.solid.size,0);
+ f.put(9,10,'silicon');f.run();assert.equal(g.data.crystalMass,1);
+ f.solid.clear();f.run();assert.equal(g.data.crystalMass,0);
+});
+test('chip fabrication consumes held workpieces, not spawned chip particles',()=>{
  const f=fixture();
- const s=f.place('box',10,10,{material:'silicon',capacity:2,release:0});
- f.put('silicon',9,10);
- f.run();assert.equal(s.data.stored,1);assert.equal(f.mut.length,0);
- s.data.release=1;f.run();
- assert.equal(s.data.stored,0);assert.equal(f.mut.length,1);
- assert.equal(f.mut[0].type,'silicon');assert.equal(f.mut[0].x,11);
+ const saw=f.place('crystal-cutter',10,10,{wafers:2});
+ const prep=f.place('wafer-processor',11,10);
+ f.put(11,9,'oxygen');f.put(11,11,'florinol');f.run();
+ assert.equal(saw.data.wafers,1);assert.equal(prep.data.coated,1);
+ const pattern=f.place('patterning-bench',12,10);
+ f.put(12,9,'acid');f.run();
+ assert.equal(prep.data.coated,0);assert.equal(pattern.data.patterned,1);
+ const assemble=f.place('chip-assembler',13,10);
+ f.put(13,9,'liquidNickel');f.run();
+ assert.equal(pattern.data.patterned,0);assert.equal(assemble.data.chips,1);
+ const carrier=f.place('chip-carrier',14,10);
+ f.run();assert.equal(assemble.data.chips,0);assert.equal(carrier.data.chips,1);
+ assert.equal([...f.particles.values()].some(x=>x.includes('chip')),false);
 });
-test('crystal puller uses purified silicon and water, never raw silicon plus charcoal',()=>{
- const f=fixture(); const machine=f.place('crystal-puller',10,10);
- f.put('iono-purified-silicon',9,10);f.put('water',10,9);
- f.run();assert.equal(machine.data.processed,1);
- assert.equal(f.mut.length,1);assert.equal(f.mut[0].type,'iono-silicon-crystal');
+test('blocked ingot space never consumes silicon',()=>{
+ const f=fixture();f.place('crystal-grower',10,10);
+ f.put(9,10,'silicon');f.put(11,9,'water');f.run();
+ assert.equal(f.get(9,10),'silicon');assert.equal(f.solid.size,0);
 });
-test('saw returns a wafer and recyclable cutting dust; blocked waste port stops production',()=>{
- const f=fixture();const m=f.place('crystal-saw',10,10);
- f.put('iono-silicon-crystal',9,10);f.put('water',10,11);
- f.run();assert.equal(m.data.processed,0);
- f.mut.splice(f.mut.findIndex(x=>x.type==='water'),1);
- f.run();assert.equal(m.data.processed,1);
- assert.ok(f.mut.some(x=>x.type==='iono-wafer'));
- assert.ok(f.mut.some(x=>x.type==='iono-silicon-dust'));
-});
-test('etch bath creates patterned wafer and spent etchant byproduct',()=>{
- const f=fixture();f.place('etch-bath',10,10);
- f.put('iono-exposed-wafer',9,10);f.put('acid',10,9);
- f.run();assert.ok(f.mut.some(x=>x.type==='iono-patterned-wafer'));
- assert.ok(f.mut.some(x=>x.type==='iono-spent-etchant'));
-});
-test('numeric cable transmits local storage amount to decider with tick delay',()=>{
- const f=fixture();
- const box=f.place('box',8,10,{material:'silicon',stored:50,value:50,release:0});
+test('binary numerical control pipeline can read local physical storage',()=>{
+ const f=fixture(),box=f.place('box',8,10,{material:'silicon',stored:50,value:50,release:0});
  f.place('wire',9,10);
  f.place('decider',10,10,{signal:'silicon',operator:'>=',threshold:40,outputSignal:'enable',amount:1});
  f.place('wire',11,10);
  const adapter=f.place('adapter',12,10,{signal:'enable',operator:'>',threshold:0});
- f.run();f.run();f.run();
- assert.equal(adapter.data.active,true);
- assert.equal(box.data.stored,50);
+ f.run(3);assert.equal(adapter.data.active,true);assert.equal(box.data.stored,50);
 });
-
-test('oxygen goes to the accepted port and hydrogen to reject port without loss',()=>{
- const f=fixture();
- const sep=f.place('phase-filter',10,10,{material:'oxygen'});
- f.put('oxygen',9,10);
- f.run();
- assert.equal(f.mut.length,1);
- assert.equal(f.mut[0].type,'oxygen');
- assert.equal(f.mut[0].x,11);
- assert.equal(sep.data.passed,1);
- f.mut.length=0;
- f.put('hydrogen',9,10);
- f.run();
- assert.equal(f.mut.length,1);
- assert.equal(f.mut[0].type,'hydrogen');
- assert.equal(f.mut[0].x,10);
- assert.equal(f.mut[0].y,11);
- assert.equal(sep.data.rejected,1);
-});
-test('separator refuses to destroy solids or route into blocked outlets',()=>{
- const f=fixture();
- f.place('phase-filter',10,10,{material:'oxygen'});
- f.put('silicon',9,10);f.run();
- assert.equal(f.mut.length,1);
- f.mut.length=0;
- f.put('oxygen',9,10);f.put('water',11,10);
- f.run();
- assert.equal(f.mut.length,2);
- assert.equal(f.mut.find(x=>x.x===9).type,'oxygen');
-});
-
-test('local power headroom sensor publishes energy capacity to cable',()=>{
- const f=fixture();
- const power=f.place('power-headroom',8,10);
- f.place('wire',9,10);
- f.place('decider',10,10,{signal:'charge-headroom',operator:'>=',threshold:3000,outputSignal:'enable',amount:1});
- f.place('wire',11,10);
- const adapter=f.place('adapter',12,10,{signal:'enable',operator:'>',threshold:0});
- f.run();f.run();f.run();
- assert.equal(power.data.value,3500);
- assert.equal(adapter.data.active,true);
-});
-
-test('fluid filter routes oxygen to accepted output and leaves rejected hydrogen untouched',()=>{
- const f=fixture();
- const filter=f.place('fluid-filter',10,10,{material:'oxygen',mode:'allow',reject:'hold'});
- f.put('oxygen',9,10);f.run();
- assert.equal(f.mut.length,1);assert.equal(f.mut[0].type,'oxygen');
- assert.equal(f.mut[0].x,11);
- f.mut.length=0;f.put('hydrogen',9,10);f.run();
- assert.equal(f.mut.length,1);assert.equal(f.mut[0].x,9);
-});
-test('fluid filter can divert rejected gases downward',()=>{
- const f=fixture();f.place('fluid-filter',10,10,{material:'oxygen',mode:'allow',reject:'down'});
- f.put('hydrogen',9,10);f.run();
- assert.equal(f.mut[0].type,'hydrogen');assert.equal(f.mut[0].x,10);assert.equal(f.mut[0].y,11);
+test('filter routes oxygen right, hydrogen down and never consumes blocked particles',()=>{
+ const f=fixture();const sep=f.place('phase-filter',10,10,{material:'oxygen'});
+ f.put(9,10,'oxygen');f.run();
+ assert.equal(f.get(11,10),'oxygen');assert.equal(sep.data.passed,1);
+ f.put(9,10,'hydrogen');f.run();
+ assert.equal(f.get(10,11),'hydrogen');assert.equal(sep.data.rejected,1);
+ f.put(9,10,'oxygen');f.run();assert.equal(f.get(9,10),'oxygen');
 });
