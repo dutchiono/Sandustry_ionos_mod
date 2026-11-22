@@ -11,7 +11,7 @@ const update=(s,x)=>api.structures.updateData(s,x);
 const isPixel=(x,y,m)=>api.elements.isTypeAtCell(x,y,m);
 const empty=(x,y)=>api.grid.isCellEmptyAtCell(x,y);
 function guard(label,fn){try{return fn();}catch(error){console.error("[Iono] "+label,error);return null;}}
-const materials=["florinol","silicon","acid","nickel","water","sand","quartz","charcoal","aura",
+const materials=["florinol","silicon","acid","liquidNickel","auralite","water","sand","quartz","charcoal","oxygen","hydrogen",
 "iono-wafer","iono-logic-die","iono-control-module","iono-spent-etchant","iono-process-medium","iono-control-core","iono-supervisor","iono-orbital-shipment"];
 const opts=xs=>xs.map(value=>({label:value,value}));
 const choice=(key,label,def,values)=>({type:"choice",id:key,label,default:def,options:opts(values)});
@@ -104,10 +104,10 @@ function filter(s){
 const MACHINES=[
 ["wafer-furnace","Wafer Furnace","silicon","charcoal","iono-wafer",8],
 ["etcher","Acid Etcher","iono-wafer","acid","iono-logic-die",8],
-["module-assembler","Module Assembler","iono-logic-die","nickel","iono-control-module",8],
+["module-assembler","Module Assembler","iono-logic-die","liquidNickel","iono-control-module",8],
 ["etchant-bath","Etchant Bath","acid","florinol","iono-spent-etchant",8],
 ["reclaimer","Reclaimer","iono-spent-etchant","florinol","iono-process-medium",8],
-["core-forge","Control Core Forge","iono-control-module","aura","iono-control-core",9],
+["core-forge","Control Core Forge","iono-control-module","auralite","iono-control-core",9],
 ["supervisor-assembler","Supervisor Assembler","iono-control-core","iono-process-medium","iono-supervisor",9]
 ];
 // A Tier-9 continuous-production sink. Three physical input streams must converge.
@@ -272,7 +272,7 @@ guard("tier 8 research",()=>api.tech.registerNode(t8,{
 },{parentId:enums.Tech.Refining8}));
 guard("tier 9 research",()=>api.tech.registerNode(t9,{
  name:"Tier 9: Autonomous Industry",
- description:"Aura-driven control cores, supervisors and orbital supply terminal.",
+ description:"Auralite-driven control cores, supervisors and orbital supply terminal.",
  branch:"refining",cost:48000,currencyType:"gold",
  requires:t8,unlocks:{structures:[...production9,id("orbital-terminal")]}
 },{parentId:t8}));
