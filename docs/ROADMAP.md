@@ -1,48 +1,44 @@
-# Execution roadmap (acceptance criteria)
+# Delivery ledger — Sandustry Iono Industrial Expansion
 
-This is the backlog, not a declaration that items are already done.
+Updated 2026-11-22. This file tracks the state of the **actual GitHub source**, not unrelated ideas or inflated future tiers.
 
-## M0: Reference audit
-- [x] Establish official Sandkit API sources.
-- [x] Confirm support for structures, signal senders/targets, triggers, placement data and tech unlock API.
-- [ ] Verify all vanilla 0.6.1 element/structure IDs from the actual runtime.
-- [ ] Inventory every controllable vanilla receiver; record test results.
-- [ ] Verify exact Florinol→Aura dependency and Tier 7 unlocks in game.
+## Implemented and source-simulated
+- [x] Vanilla silicon route preserved; additional Purified Silicon recipe bound to existing Smelter
+- [x] World-space single-crystal Silicon terrain registration
+- [x] Purified-Silicon feed grows visible terrain, one solid cell per consumed particle
+- [x] Growth obstruction stops material consumption
+- [x] Mature crystal harvested tile-by-tile; four removed tiles make one held wafer
+- [x] No falling-sand chip/wafer elements
+- [x] Wafer preparation consumes existing Oxygen and Florinol
+- [x] Etch processing consumes Acid; spent bath held as quantity
+- [x] Chip assembly consumes Liquid Nickel and patterned wafer workpiece
+- [x] Physical chip carrier and chip-consuming hysteresis controller
+- [x] Physical solid/liquid storage and local numeric sensor signals
+- [x] Decider, arithmetic, memory, binary adapter, controllable valve
+- [x] Oxygen/hydrogen fluid-gas separator; rejected material preserved
+- [x] Power headroom sensor read from physically connected network
+- [x] Earlier Industrial Automation and Tier 8/Tier 9 research node definitions
+- [x] Main script syntax compiled in a source-level test environment
+- [x] End-to-end source simulation: purified feed → grown ingot → cut wafers → coated wafer → patterned wafer → chip assembly → carrier → installed controller
+- [x] GitHub Actions test workflow and mock regression suite committed
 
-## M1: Signal foundations
-- [x] Add initial probe and decider structures in source.
-- [x] Bounded per-probe particle scan.
-- [x] Unit test comparator.
-- [ ] Load mod in game; verify sprite, placement, menu unlock, and saves.
-- [ ] Validate Signal Linker works with probe and decider.
-- [ ] Prove no broken vanilla machine state from target registration.
-- [ ] Add debugging inspector for live numeric readings.
+## In-game validation (not performed here)
+- [ ] Actual Sandustry 0.6.1 mod loading, sprite resolution and research menu
+- [ ] Appended Smelter silicon recipe obeys vanilla heat and intake constraints
+- [ ] Native terrain registration, collision, mining, persistence and world save/reload
+- [ ] Real-world structure anchor/footprint positions and placement limitations
+- [ ] Grid mutation concurrency with other moving particles
+- [ ] Power headroom and Signal Linker adapters with real targets
 
-## M2: Physical instrumented storage (priority)
-- [ ] Solid box: explicit accepted materials, real material conservation, capacity, overflow.
-- [ ] Fluid/gas tank: pipe inputs/outputs and separate pressure/volume accounting.
-- [ ] Energy/battery sensor: read native stored energy with no global magic.
-- [ ] Dedicated wire port on structures.
+## Deliberately excluded rather than pretending complete
+- Tier 10/11 megafactory chains, orbital contracts and extra fictional ores
+- Per-wafer lithography graphics and moving physical blade animation
+- Standalone silicon furnace or instant silicon-to-chip conversion
+- Global invisible storage counters / unconnected factory telemetry
 
-## M3: Proper circuits
-- [ ] Numeric signal transport through wired graph; stable IDs, persistence, deterministic ticks.
-- [ ] Decider with signal selection, numeric comparator, output count.
-- [ ] Arithmetic and memory combinators; copy/paste settings.
-- [ ] Debug overlay showing wire values and network topology.
-- [ ] Wire-to-vanilla binary adapter.
-- [ ] Machine ON/OFF actuators and fail-safe behavior.
+## Authoritative documentation
+- [README](../README.md)
+- [Build and construction guide](BUILD_AND_TEST.md)
+- [Current progression](PROGRESSION.md)
 
-## M4: Tier 8
-- [ ] Register semiconductor processing elements with appropriate physical behavior.
-- [ ] Implement wafer furnace, lithography, acid recovery, process cooling and module assembler.
-- [ ] Research chain and building unlocks.
-- [ ] Mass/energy balance tests and throughput balancing.
-
-## M5: Tier 9
-- [ ] Industrial control cores, factory supervisor, advanced storage.
-- [ ] Autonomous orbital supply megaproject with measured throughput and stability requirements.
-- [ ] Regression testing and saved-game compatibility.
-- [ ] Workshop release and tested screenshots.
-
-## Testing gate
-No item is marked *complete* solely from source code or a unit test. Real game integration requires manual/equivalent runtime verification with Sandustry 0.6.x.
+Source-level validation does **not** constitute verified in-game compatibility; the user intends to test only after the code/build has been implemented.
