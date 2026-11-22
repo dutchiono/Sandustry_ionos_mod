@@ -44,7 +44,7 @@ Silicon is produced with the vanilla Reaction Chamber and smelted into Purified 
 
 The intent is not a random Copper+Nickel alloy. **Copper forms the conductive traces; Nickel packages and plates the external contacts.** Gold is an optional higher-grade contact finish, with one Liquid Gold pixel consumed only when that feed is present. None of these chip types becomes a loose sand element.
 
-**Existing Gold forms:** Gold, Liquid Gold, Gold Granulate and Gold Vapor are listed in the game's material index. This mod currently uses only **Liquid Gold** in the optional chip finish. It does **not** assume a conversion from Gold Granulate or Gold Vapor because those recipes have not been verified.
+**Existing Gold forms and native production:** Gold → heated Smelter → Liquid Gold. Separately, Blacksand → Steam Dryer → Gold Vapor → Condenser → Liquid Gold. Later research lets the existing Synthesizer turn Liquid Gold into Gold Granulate (a higher-density Gold-storage material). The mod consumes **Liquid Gold only** for optional chip contact finishing; it does not divert or reverse the Gold Granulate process. Native Gold can still be collected as research currency.
 
 A real silicon chip also needs controlled doping, masking and deposition conditions. The currently coded benches are *Sandustry-scale abstractions* rather than a chemically complete fabrication simulator. Florinol's proposed photoresist behavior is fictional.
 
