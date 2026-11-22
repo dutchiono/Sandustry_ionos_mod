@@ -153,7 +153,7 @@ function fixture(name,label,description,shape,defaults,order){
 }
 fixture("crystal-grower","Silicon Crystal Growth Fixture",
  "Consume Purified Silicon from LEFT; grow one visible solid ingot upward at x+1. CUT two cells RIGHT.",
- [[1]],{crystalMass:0,maxMass:16,complete:false,enabled:true,value:0},210);
+ [[1]],{crystalMass:0,maxMass:16,complete:false,harvesting:false,enabled:true,value:0},210);
 fixture("crystal-cutter","Crystal Cutter",
  "Slice the physical ingot anchored TWO cells LEFT; four crystal cells make one discrete wafer.",
  [[1]],{wafers:0,cutProgress:0,cutCount:0,enabled:true,value:0},211);
@@ -198,6 +198,10 @@ function crystalCells(s){
 function growCrystal(s){
  if(s.data?.enabled===false)return;
  const cells=crystalCells(s),max=cap(s.data?.maxMass,4,32);
+ if(s.data?.harvesting){
+  if(cells.length===0)update(s,{harvesting:false,crystalMass:0,complete:false,value:0});
+  return;
+ }
  const count=cells.length,complete=count>=max;
  if(read(s,"crystalMass")!==count||!!s.data?.complete!==complete)
   update(s,{crystalMass:count,complete,value:count});
@@ -211,12 +215,13 @@ function growCrystal(s){
   update(s,{crystalMass:count+1,complete:count+1>=max,value:count+1});
  });
 }
+config("crystal-grower",[integer("maxMass","Ingot height (cells)",16,4,32)]);
 function cutCrystal(s){
  if(s.data?.enabled===false)return;
  const growth=neighboring(s,"crystal-grower",-1,0);
- if(!growth)return;
+ if(!growth||(!growth.data?.complete&&!growth.data?.harvesting))return;
  const cells=crystalCells(growth);
- if(!cells.length)return;
+ if(!cells.length){update(growth,{harvesting:false,complete:false,crystalMass:0,value:0});return;}
  // Read actual world terrain: never mint a wafer from a stored mass counter.
  const last=cells[cells.length-1],progress=cap(s.data?.cutProgress,0,3);
  api.grid.mutate(w=>{
@@ -225,7 +230,8 @@ function cutCrystal(s){
   const next=progress+1,makeWafer=next===4,waferCount=read(s,"wafers")+(makeWafer?1:0);
   update(s,{cutProgress:makeWafer?0:next,wafers:waferCount,
    cutCount:read(s,"cutCount")+1,value:waferCount});
-  update(growth,{crystalMass:cells.length-1,complete:false,value:cells.length-1});
+  update(growth,{crystalMass:cells.length-1,complete:false,
+    harvesting:cells.length>1,value:cells.length-1});
  });
 }
 function prepareWafers(s){
