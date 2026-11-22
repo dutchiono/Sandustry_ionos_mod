@@ -118,10 +118,10 @@ function fixture(name,label,description,shape,defaults,order){
  });
 }
 fixture("crystal-grower","Silicon Crystal Growth Fixture",
- "Consume Purified Silicon from LEFT; grow one visible solid ingot upward at x+1. CUT two cells RIGHT.",
- [[1]],{crystalMass:0,maxMass:16,complete:false,harvesting:false,enabled:true,value:0},210);
+ "Consume Purified Silicon LEFT; grow one 3-cell-wide solid ingot ABOVE/RIGHT. Cutter FOUR cells RIGHT.",
+ [[1]],{crystalMass:0,maxMass:12,complete:false,harvesting:false,enabled:true,value:0},210);
 fixture("crystal-cutter","Crystal Cutter",
- "Slice the physical ingot anchored TWO cells LEFT; four crystal cells make one discrete wafer.",
+ "Slice the physical 3-wide ingot anchored FOUR cells LEFT; one complete row makes one held wafer.",
  [[1]],{wafers:0,cutProgress:0,cutCount:0,enabled:true,value:0},211);
 fixture("wafer-processor","Wafer Preparation Bench",
  "Prepare held wafers using physical Oxygen and Florinol; output held coated wafers.",
@@ -167,18 +167,23 @@ function neighboring(structure,name,dx,dy){
 // The ingot remains visible/solid even after the fixture is removed; mining it
 // changes real terrain and therefore invalidates the source inventory on next scan.
 const INGOT=id("silicon-ingot");
+const CRYSTAL_WIDTH=3;
+function ingotPoint(s,index){
+ return [s.x+1+(index%CRYSTAL_WIDTH),
+  s.y-1-Math.floor(index/CRYSTAL_WIDTH)];
+}
 function crystalCells(s){
- const out=[],max=cap(s.data?.maxMass,4,32),x=s.x+1;
+ const out=[],max=cap(s.data?.maxMass,3,48);
  for(let i=0;i<max;i++){
-  const y=s.y-1-i;
-  if(!api.terrains.isTypeAtCell(x,y,INGOT))break;
-  out.push([x,y]);
+  const xy=ingotPoint(s,i);
+  if(!api.terrains.isTypeAtCell(...xy,INGOT))break;
+  out.push(xy);
  }
  return out;
 }
 function growCrystal(s){
  if(s.data?.enabled===false)return;
- const cells=crystalCells(s),max=cap(s.data?.maxMass,4,32);
+ const cells=crystalCells(s),max=cap(s.data?.maxMass,3,48);
  if(s.data?.harvesting){
   if(cells.length===0)update(s,{harvesting:false,crystalMass:0,complete:false,value:0});
   return;
@@ -187,7 +192,7 @@ function growCrystal(s){
  if(read(s,"crystalMass")!==count||!!s.data?.complete!==complete)
   update(s,{crystalMass:count,complete,value:count});
  if(complete)return;
- const inlet=[s.x-1,s.y],dest=[s.x+1,s.y-1-count];
+ const inlet=[s.x-1,s.y],dest=ingotPoint(s,count);
  api.grid.mutate(w=>{
   // An occupied growth cell blocks production, preserving the Silicon input.
   if(!isPixel(...inlet,id("purified-silicon"))||!empty(...dest))return;
@@ -196,7 +201,7 @@ function growCrystal(s){
   update(s,{crystalMass:count+1,complete:count+1>=max,value:count+1});
  });
 }
-config("crystal-grower",[integer("maxMass","Ingot height (cells)",16,4,32)]);
+config("crystal-grower",[integer("maxMass","Ingot volume (multiple of 3)",12,3,48)]);
 function cutCrystal(s){
  if(s.data?.enabled===false)return;
  const growth=neighboring(s,"crystal-grower",-1,0);
@@ -204,11 +209,11 @@ function cutCrystal(s){
  const cells=crystalCells(growth);
  if(!cells.length){update(growth,{harvesting:false,complete:false,crystalMass:0,value:0});return;}
  // Read actual world terrain: never mint a wafer from a stored mass counter.
- const last=cells[cells.length-1],progress=cap(s.data?.cutProgress,0,3);
+ const last=cells[cells.length-1],progress=cap(s.data?.cutProgress,0,CRYSTAL_WIDTH-1);
  api.grid.mutate(w=>{
   if(!api.terrains.isTypeAtCell(...last,INGOT))return;
   w.terrains.removeAtCell(...last);
-  const next=progress+1,makeWafer=next===4,waferCount=read(s,"wafers")+(makeWafer?1:0);
+  const next=progress+1,makeWafer=next===CRYSTAL_WIDTH,waferCount=read(s,"wafers")+(makeWafer?1:0);
   update(s,{cutProgress:makeWafer?0:next,wafers:waferCount,
    cutCount:read(s,"cutCount")+1,value:waferCount});
   update(growth,{crystalMass:cells.length-1,complete:false,
