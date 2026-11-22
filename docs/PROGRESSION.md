@@ -29,15 +29,18 @@ Building these first means players can stabilize basic plants *before* they manu
 
 Neither wafer nor chip is a powder pixel. The factory must physically route Silicon feed to the extrusion device and place the cutter at the machine face, not teleport a completed object from one arbitrary location to another.
 
-## Tier 9 — Wafer and Chip Fabrication
+## Tier 9 — Wafer and chip fabrication
 
-1. Wafer Preparation Bench: one wafer (held) + Oxygen (pixel) + Florinol (pixel) → one **coated wafer workpiece**.
-2. Exposure & Etching Bench: one coated wafer + Acid pixel → one **patterned wafer workpiece**, plus one unit spent bath. Florinol's proposed photoresist behavior is *fictional Sandustry chemistry*.
-3. Chip Assembly Bench: one patterned wafer + Liquid Nickel pixel → **one manufactured chip**.
-4. Chip Carrier: physical device inventory (capacity 64).
-5. Chip-Based Process Controller: consumes **one chip from carrier**; then reads a physically wired numeric signal and outputs a hysteretic control condition.
+The chip is a **manufactured device**, not a powder, liquid or currency pixel:
 
-Unlike an arbitrary counter, a produced chip unlocks a genuinely useful factory-control device.
+1. Wafer from cutter + Oxygen + Florinol → **coated wafer**, physically fed to preparation bench.
+2. Coated wafer + Acid → **patterned wafer**, producing spent etchant requiring future recovery.
+3. Patterned wafer + **Liquid Copper** → **copper circuit wafer** in a distinct Copper Interconnect Plater. Copper supplies metal traces.
+4. Copper circuit wafer + **Liquid Nickel** → **packaged chip** in the Nickel Chip Packager. Nickel serves plating and the package.
+5. Optional **Liquid Gold** at the packager's lower inlet → **gold-contact packaged chip**, preserving ordinary chip production without Gold.
+6. Chip Carrier stores ordinary and gold-contact variants separately; controller physically consumes a chip when installed.
+
+The existing Smelter and metal supply chains remain essential. No new ore is introduced, and Gold Granulate or Gold Vapor are not assigned invented conversion recipes. Gold-contact quality differences are recorded as device grade but do not yet change circuit control logic.
 
 ## Future ideas, NOT part of this delivery
 
