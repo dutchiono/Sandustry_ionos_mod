@@ -12,19 +12,25 @@ const isPixel=(x,y,m)=>api.elements.isTypeAtCell(x,y,m);
 const empty=(x,y)=>api.grid.isCellEmptyAtCell(x,y);
 function guard(label,fn){try{return fn();}catch(error){console.error("[Iono] "+label,error);return null;}}
 const materials=["florinol","silicon","acid","liquidNickel","auralite","water","sand","quartz","charcoal","oxygen","hydrogen",
-"iono-wafer","iono-logic-die","iono-control-module","iono-spent-etchant","iono-process-medium","iono-control-core","iono-supervisor","iono-orbital-shipment"];
+"iono-purified-silicon","iono-silicon-crystal","iono-silicon-dust","iono-wafer","iono-oxidized-wafer","iono-photoresist",
+"iono-coated-wafer","iono-exposed-wafer","iono-patterned-wafer","iono-spent-etchant","iono-circuit-wafer","iono-logic-die","iono-control-module"];
 const opts=xs=>xs.map(value=>({label:value,value}));
 const choice=(key,label,def,values)=>({type:"choice",id:key,label,default:def,options:opts(values)});
 const integer=(key,label,def,min,max)=>({type:"integer",id:key,label,default:def,min,max});
 const ELEM=[
+["purified-silicon","Purified Silicon","Powder",5,[180,180,184,255]],
+["silicon-crystal","Silicon Crystal","Powder",7,[150,178,207,255]],
+["silicon-dust","Silicon Cutting Dust","Powder",4,[115,125,135,255]],
 ["wafer","Silicon Wafer","Powder",5,[125,165,190,255]],
-["logic-die","Logic Die","Powder",7,[40,215,170,255]],
-["control-module","Control Module","Powder",8,[145,100,220,255]],
+["oxidized-wafer","Oxidized Wafer","Powder",6,[166,183,205,255]],
+["photoresist","Florinol Photoresist","Liquid",6,[116,78,188,255]],
+["coated-wafer","Coated Wafer","Powder",6,[144,111,188,255]],
+["exposed-wafer","Exposed Wafer","Powder",6,[183,123,206,255]],
+["patterned-wafer","Patterned Wafer","Powder",6,[166,170,200,255]],
 ["spent-etchant","Spent Etchant","Liquid",8,[140,130,60,255]],
-["process-medium","Purified Process Medium","Liquid",6,[70,210,200,255]],
-["control-core","Industrial Control Core","Powder",9,[240,180,85,255]],
-["supervisor","Factory Supervisor","Powder",10,[225,90,150,255]],
-["orbital-shipment","Orbital Shipment","Powder",10,[70,180,245,255]]];
+["circuit-wafer","Circuit Wafer","Powder",6,[90,163,176,255]],
+["logic-die","Logic Die","Powder",7,[40,215,170,255]],
+["control-module","Control Module","Powder",8,[145,100,220,255]]];
 for(const [short,name,matterType,density,color] of ELEM)
  api.elements.register({id:id(short),name,matterType:enums.MatterType[matterType],
  density,isGrabbable:true,isTransportable:true,colors:{variants:[color]}});
@@ -58,7 +64,7 @@ structure("probe","Area Probe","Count actual pixels in a bounded area; connect d
 for(const [name,mat,size] of [["box","silicon",256],["tank","florinol",512]])
  config(name,[choice("material","Material",mat,materials),integer("capacity","Capacity",size,1,4096),integer("release","Release (0 or 1)",1,0,1)]);
 config("phase-filter",[
- choice("material","Selected fluid/gas","oxygen",["oxygen","hydrogen","water","florinol","acid","sulfurDioxide","iono-spent-etchant","iono-process-medium"]),
+ choice("material","Selected fluid/gas","oxygen",["oxygen","hydrogen","water","florinol","acid","sulfurDioxide","iono-spent-etchant","iono-photoresist"]),
  choice("mode","Selected material route","allow",["allow","block"])]);
 config("probe",[choice("material","Material","florinol",materials),integer("radius","Radius",4,1,12)]);
 config("decider",[choice("signal","Input","florinol",materials.concat(["enable","calculated"])),
@@ -134,41 +140,57 @@ function fluidFilter(s){
  update(s,{processed:read(s,"processed")+1,value:pass?1:0});
 }
 api.signals.targets.register(id("fluid-filter"),(s,p)=>update(s,{enabled:!!p.combined}));
-// Industrial recipes use two ACTUAL input pixels, one on left and one above.
-const MACHINES=[
-["wafer-furnace","Wafer Furnace","silicon","charcoal","iono-wafer",8],
-["etcher","Acid Etcher","iono-wafer","acid","iono-logic-die",8],
-["module-assembler","Module Assembler","iono-logic-die","liquidNickel","iono-control-module",8],
-["etchant-bath","Etchant Bath","acid","florinol","iono-spent-etchant",8],
-["reclaimer","Reclaimer","iono-spent-etchant","florinol","iono-process-medium",8],
-["core-forge","Control Core Forge","iono-control-module","auralite","iono-control-core",9],
-["supervisor-assembler","Supervisor Assembler","iono-control-core","iono-process-medium","iono-supervisor",9]
+// Vanilla already converts Silica + Charcoal -> Silicon inside Reaction Chamber.
+// Reuse the actual heated Smelter for silicon purification. Do not fake heat
+// by making a duplicate charcoal furnace. This attaches to native heat rules.
+guard("register silicon smelting",()=>api.structures.recipes.register("smelter",{
+ input:"silicon",outputs:[{elementType:id("purified-silicon"),chance:1}]
+}));
+
+// Small single-cell additions with distinct physical roles (crystal growth,
+// slicing, wet coating, optical exposure, etch/rinse, metal deposition).
+const PROCESS=[
+ // id, name, primary input LEFT, reagent TOP (null for tool-only step), product RIGHT, tier
+ ["crystal-puller","Crystal Puller","iono-purified-silicon","water","iono-silicon-crystal",8],
+ ["crystal-saw","Crystal Saw","iono-silicon-crystal",null,"iono-wafer",8],
+ ["oxidizer","Thermal Oxidizer","iono-wafer","oxygen","iono-oxidized-wafer",9],
+ ["resist-maker","Resist Mixer","florinol","iono-silicon-dust","iono-photoresist",9],
+ ["spin-coater","Wafer Coater","iono-oxidized-wafer","iono-photoresist","iono-coated-wafer",9],
+ ["mask-aligner","Mask Aligner","iono-coated-wafer",null,"iono-exposed-wafer",9],
+ ["etch-bath","Etch & Rinse Bath","iono-exposed-wafer","acid","iono-patterned-wafer",9],
+ ["metallizer","Metallizer","iono-patterned-wafer","liquidNickel","iono-circuit-wafer",9],
+ ["die-saw","Die Saw","iono-circuit-wafer",null,"iono-logic-die",9],
+ ["module-assembler","Module Assembler","iono-logic-die","liquidNickel","iono-control-module",9],
+ ["etchant-reclaimer","Etchant Reclaimer","iono-spent-etchant","water","acid",9]
 ];
-// A Tier-9 continuous-production sink. Three physical input streams must converge.
-// LEFT receives Supervisors; ABOVE receives Wafers; BELOW receives Process Medium.
-// Outputs one shipment RIGHT and records the achieved throughput in placed structure data.
-structure("orbital-terminal","Orbital Supply Terminal",
- "LEFT Supervisor + ABOVE Wafer + BELOW Process Medium -> RIGHT Orbital Shipment.",
- {enabled:true,processed:0,intervalStreak:0,lastProducedAt:0,value:0},"industrial","collector");
-api.signals.targets.register(id("orbital-terminal"),(s,p)=>update(s,{enabled:!!p.combined}));
-function orbital(s){
- const l=[s.x-1,s.y],u=[s.x,s.y-1],d=[s.x,s.y+1],r=[s.x+1,s.y];
+// Each machine is a single physical placement; it does not replace Sandustry
+// heat/cooling infrastructure. Processing pauses when outlet is obstructed.
+for(const [short,name,a,b,out,tier] of PROCESS){
+ structure(short,name, "Tier "+tier+": LEFT "+a+(b?" + ABOVE "+b:"")+" -> RIGHT "+out,
+ {enabled:true,processed:0,value:0},"industrial","collector");
+ api.signals.targets.register(id(short),(st,p)=>update(st,{enabled:!!p.combined}));
+}
+function processOne(s,a,b,out,name){
+ if(s.data?.enabled===false)return;
+ const left=[s.x-1,s.y],top=[s.x,s.y-1],right=[s.x+1,s.y];
+ const waste=[s.x,s.y+1];
+ // Cutting consumes one crystal and emits recoverable silicon dust.
+ const saw=name==="crystal-saw";
+ const etch=name==="etch-bath";
+ const mustWaste=saw||etch;
  api.grid.mutate(w=>{
-  if(s.data?.enabled===false || !isPixel(...l,"iono-supervisor")||!isPixel(...u,"iono-wafer")||
-     !isPixel(...d,"iono-process-medium")||!empty(...r))return;
-  w.elements.removeAtCell(...l);w.elements.removeAtCell(...u);w.elements.removeAtCell(...d);
-  w.elements.createAtCell(...r,"iono-orbital-shipment");
-  const now=api.time.getElapsedMs();
-  const streak=now-read(s,"lastProducedAt")<=5000?read(s,"intervalStreak")+1:1;
-  update(s,{processed:read(s,"processed")+1,intervalStreak:streak,
-   lastProducedAt:now,value:streak});
+  if(s.data?.enabled===false||!isPixel(...left,a)|| (b&&!isPixel(...top,b))||
+     !empty(...right)||(mustWaste&&!empty(...waste)))return;
+  w.elements.removeAtCell(...left);
+  if(b)w.elements.removeAtCell(...top);
+  w.elements.createAtCell(...right,out);
+  if(saw)w.elements.createAtCell(...waste,id("silicon-dust"));
+  if(etch)w.elements.createAtCell(...waste,id("spent-etchant"));
+  update(s,{processed:read(s,"processed")+1,value:read(s,"processed")+1});
  });
 }
-for(const [short,name,a,b,out,tier] of MACHINES){
- structure(short,name,"T"+tier+" LEFT: "+a+" + ABOVE: "+b+" -> RIGHT: "+out,
- {enabled:true,processed:0,value:0},"industrial","smelter");
- api.signals.targets.register(id(short),(s,p)=>update(s,{enabled:!!p.combined}));
-}
+// In later recipes, the Florinol-derived resist is a fictional photoactive
+// processing chemical, NOT a claim that real Florinol has photoresist properties.
 function storage(s){
  const m=s.data?.material||"silicon",limit=cap(s.data?.capacity,1,4096);
  const left=[s.x-1,s.y],right=[s.x+1,s.y];
@@ -282,9 +304,8 @@ api.triggers.register("iono:industrial-cycle",{interval:30,sequentialRuns:1,extr
  api.structures.forEachOfType(id("valve"),s=>guard("valve",()=>valve(s)));
  api.structures.forEachOfType(id("fluid-filter"),s=>guard("fluid filter",()=>fluidFilter(s)));
  api.structures.forEachOfType(id("phase-filter"),s=>guard("phase filter",()=>filter(s)));
- for(const [short,,a,b,out] of MACHINES)
-  api.structures.forEachOfType(id(short),s=>guard(short,()=>reaction(s,a,b,out)));
- api.structures.forEachOfType(id("orbital-terminal"),s=>guard("orbital terminal",()=>orbital(s)));
+ for(const [short,,a,b,out] of PROCESS)
+  api.structures.forEachOfType(id(short),s=>guard(short,()=>processOne(s,a,b,out,short)));
  guard("numeric wiring",circuits);
 }});
 // Research is split: practical automation comes earlier, semiconductor industry
@@ -292,8 +313,8 @@ api.triggers.register("iono:industrial-cycle",{interval:30,sequentialRuns:1,extr
 const ta=id("automation"),t8=id("tier8"),t9=id("tier9");
 const controls=["box","tank","wire","decider","arithmetic","memory","phase-filter",
  "power-headroom","adapter","valve","probe"].map(id);
-const production8=MACHINES.filter(m=>m[5]===8).map(m=>id(m[0]));
-const production9=MACHINES.filter(m=>m[5]===9).map(m=>id(m[0]));
+const production8=PROCESS.filter(m=>m[5]===8).map(m=>id(m[0]));
+const production9=PROCESS.filter(m=>m[5]===9).map(m=>id(m[0]));
 guard("automation research",()=>api.tech.registerNode(ta,{
  name:"Industrial Automation",description:"Instrument actual storage, flow, gases and power.",
  branch:"logistics",cost:2400,currencyType:"gold",
@@ -301,14 +322,14 @@ guard("automation research",()=>api.tech.registerNode(ta,{
 },{parentId:enums.Tech.SignalDevices}));
 guard("tier 8 research",()=>api.tech.registerNode(t8,{
  name:"Tier 8: Instrumentation & Fabrication",
- description:"Wafer manufacturing, acid processing and control modules.",
+ description:"Native silicon smelting, crystal growth and wafer cutting.",
  branch:"refining",cost:18000,currencyType:"gold",
  requires:[enums.Tech.Refining8,ta],unlocks:{structures:production8}
 },{parentId:enums.Tech.Refining8}));
 guard("tier 9 research",()=>api.tech.registerNode(t9,{
  name:"Tier 9: Autonomous Industry",
- description:"Auralite-driven control cores, supervisors and orbital supply terminal.",
+ description:"Florinol resist, oxygen oxidation, lithography, etching and logic chips.",
  branch:"refining",cost:48000,currencyType:"gold",
- requires:t8,unlocks:{structures:[...production9,id("orbital-terminal")]}
+ requires:t8,unlocks:{structures:production9}
 },{parentId:t8}));
-api.events.on("game:ready",()=>guard("welcome",()=>api.ui.toast("Iono Expansion loaded: control devices, Tier 8 and Tier 9.")));
+api.events.on("game:ready",()=>guard("welcome",()=>api.ui.toast("Iono Expansion loaded: physical controls and wafer fabrication.")));
