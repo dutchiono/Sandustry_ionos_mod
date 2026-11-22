@@ -21,10 +21,10 @@ These are mock/simulation tests, not proof of compatibility with the game binary
 2. Vanilla: Silica and Charcoal are reacted in an enclosed **Reaction Chamber**, producing **Silicon**.
 3. Expansion attaches an additional recipe to the **existing heat-powered Smelter**: Silicon → **Purified Silicon**. The vanilla heat rules are expected to govern this recipe but still need direct game validation.
 4. Send individual Purified Silicon particles to the **LEFT side** of the single-cell **Silicon Crystal Growth Fixture**.
-5. The fixture adds **one actual solid Silicon Ingot terrain cell** immediately above/right of itself for each Purified Silicon particle received. The material forms one contiguous world-space solid column.
-6. Choose the ingot height (4–32 cells, default 16). If the next growth cell is obstructed, production pauses without consuming the feed.
-7. Place a **Crystal Cutter** **two cells RIGHT** of the growth fixture (with the growth column between them).
-8. Once the crystal reaches its target height, the cutter begins removing the top terrain cell per cycle. Four cuts produce **one held wafer workpiece** in the cutter's local inventory. A 16-cell ingot therefore yields four wafers.
+5. The fixture adds **one actual solid Silicon Ingot terrain cell** across a three-cell-wide ingot immediately above/right of itself for each Purified Silicon particle received. The material forms one contiguous world-space solid column.
+6. Choose the ingot height (3–48 cells in complete rows, default 12). If the next growth cell is obstructed, production pauses without consuming the feed.
+7. Place a **Crystal Cutter** **four cells RIGHT** of the growth fixture (with the growth column between them).
+8. Once the crystal reaches its target height, the cutter begins removing the top terrain cell per cycle. Three cuts produce **one held wafer workpiece** in the cutter's local inventory. A 12-cell ingot therefore yields four wafers.
 9. The grower stays locked during harvesting so the crystal cannot be regrown while it is being sliced.
 
 Mining the solid ingot independently removes real geometry. The model rereads the actual terrain before processing; it cannot manufacture a wafer from an old mass counter.
