@@ -19,14 +19,15 @@ Unlocked via Industrial Automation, branching off Signal Devices:
 
 Building these first means players can stabilize basic plants *before* they manufacture chips.
 
-## Tier 8 — Silicon Crystal Engineering
+## Tier 8 — Silicon Ingot Extrusion and Cutting
 
-1. Smelter (existing heat requirement): Silicon → Purified Silicon (new powder).
-2. Crystal Growth Fixture: converts one Purified Silicon **pixel** into one real **solid Silicon Ingot terrain cell**, growing upward in a single contiguous world-space column.
-3. Cutter: once the ingot reaches configured height, remove ingot cells one by one. **Three real cells cut produce one discrete wafer**. No wafer powder, no free instant crafting.
-4. Industrial control can regulate source stream and storage to avoid blocked ingots.
+1. Existing heated Smelter: Silicon → Purified Silicon.
+2. Extruder receives individual Purified Silicon pixels; every three feed pixels build one complete three-high terrain cross-section at the nozzle.
+3. Existing solid geometry **moves right cell by cell** when new feed arrives. A bounded six-column track is physically required between extruder and cutter; obstacles stop movement.
+4. A cutter installed at the track exit **only acts on adjacent physical terrain**, slicing down the three-high leading face. Every full three-cell slice yields one **held wafer**.
+5. A fully occupied track causes backpressure; the extruder stops taking new feed until the cutter has cleared room.
 
-Crystals are structures in the world, physically mined or cuttable, not invisible counter items.
+Neither wafer nor chip is a powder pixel. The factory must physically route Silicon feed to the extrusion device and place the cutter at the machine face, not teleport a completed object from one arbitrary location to another.
 
 ## Tier 9 — Wafer and Chip Fabrication
 
