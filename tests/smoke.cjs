@@ -146,3 +146,18 @@ test('local power headroom sensor publishes energy capacity to cable',()=>{
  assert.equal(power.data.value,3500);
  assert.equal(adapter.data.active,true);
 });
+
+test('fluid filter routes oxygen to accepted output and leaves rejected hydrogen untouched',()=>{
+ const f=fixture();
+ const filter=f.place('fluid-filter',10,10,{material:'oxygen',mode:'allow',reject:'hold'});
+ f.put('oxygen',9,10);f.run();
+ assert.equal(f.mut.length,1);assert.equal(f.mut[0].type,'oxygen');
+ assert.equal(f.mut[0].x,11);
+ f.mut.length=0;f.put('hydrogen',9,10);f.run();
+ assert.equal(f.mut.length,1);assert.equal(f.mut[0].x,9);
+});
+test('fluid filter can divert rejected gases downward',()=>{
+ const f=fixture();f.place('fluid-filter',10,10,{material:'oxygen',mode:'allow',reject:'down'});
+ f.put('hydrogen',9,10);f.run();
+ assert.equal(f.mut[0].type,'hydrogen');assert.equal(f.mut[0].x,10);assert.equal(f.mut[0].y,11);
+});
