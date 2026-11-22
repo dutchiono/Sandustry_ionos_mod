@@ -83,17 +83,39 @@ structure("adapter","Signal Link Adapter","Converts numeric LEFT cable into vani
  {signal:"enable",operator:">",threshold:0,active:false,value:0},"logistics","signalToggle");
 structure("valve","Signal Valve","Uses LEFT cable enable signal to move materials LEFT to RIGHT.",
  {signal:"enable",material:"florinol",threshold:1,enabled:false,value:0},"logistics","door");
-structure("phase-filter","Fluid / Gas Separator","Route chosen gas or liquid from LEFT to RIGHT; all other selected fluid/gas particles exit BELOW. Never destroys rejected material.",
- {material:"oxygen",mode:"allow",enabled:true,passed:0,rejected:0,value:0},"logistics","collector");
+structure("phase-filter","Fluid / Gas Separator","LEFT fluid/gas intake; matching RIGHT, rejected BELOW. Circuit cable ABOVE.",
+ {material:"oxygen",mode:"allow",control:"always",signal:"enable",threshold:1,enabled:true,passed:0,rejected:0,value:0},"logistics","collector");
+for(const [name,label,kind] of [
+ ["gas-filter","Gas Filter","gas"],["liquid-filter","Liquid Filter","liquid"]]){
+ structure(name,label,"Only "+kind+" enters LEFT. Selected material RIGHT, other "+kind+" BELOW. Circuit cable ABOVE.",
+ {material:kind==="gas"?"oxygen":"water",mode:"allow",control:"always",
+  signal:"enable",threshold:1,enabled:true,passed:0,rejected:0,value:0},"logistics","collector");
+}
+structure("fluid-pump","Signal Pump","LEFT liquid/gas → RIGHT outlet. Circuit cable ABOVE; configurable phase.",
+ {phase:"both",control:"always",signal:"enable",threshold:1,enabled:true,processed:0,value:0},"logistics","collector");
+structure("gas-vent","Signal Gas Vent","LEFT gas → ABOVE outlet. Optional cable BELOW.",
+ {control:"always",signal:"enable",threshold:1,enabled:true,processed:0,value:0},"logistics","collector");
+structure("liquid-outlet","Signal Liquid Outlet","LEFT liquid → BELOW outlet. Optional cable ABOVE.",
+ {control:"always",signal:"enable",threshold:1,enabled:true,processed:0,value:0},"logistics","collector");
 structure("power-headroom","Power Network Meter","Measures the free charge capacity of the physically adjoining power network, as numeric cable signal.",
  {value:0,stored:0,material:"charge-headroom"},"logistics","collector");
 structure("probe","Area Probe","Count actual pixels in a bounded area; connect data cable.",
  {material:"florinol",radius:4,value:0});
 for(const [name,mat,size] of [["box","silicon",256],["tank","florinol",512]])
  config(name,[choice("material","Material",mat,materials),integer("capacity","Capacity",size,1,4096),integer("release","Release (0 or 1)",1,0,1)]);
-config("phase-filter",[
- choice("material","Selected fluid/gas","oxygen",["oxygen","hydrogen","water","florinol","acid","sulfurDioxide","iono-spent-etchant","iono-photoresist"]),
- choice("mode","Selected material route","allow",["allow","block"])]);
+const fluidChoices=["oxygen","hydrogen","steam","water","florinol","acid","liquidCopper","liquidNickel","liquidGold"];
+const controlFields=[
+ choice("control","Control","always",["always","circuit"]),
+ choice("signal","Circuit signal","enable",["enable","calculated","florinol","oxygen","hydrogen","water","charge-headroom"]),
+ integer("threshold","Enable when signal reaches",1,-100000,100000)];
+for(const kind of ["phase-filter","gas-filter","liquid-filter"])
+ config(kind,[
+  choice("material","Selected material",kind==="liquid-filter"?"water":"oxygen",fluidChoices),
+  choice("mode","Selected material route","allow",["allow","block"]),
+  ...controlFields]);
+config("fluid-pump",[
+ choice("phase","Transfer","both",["both","gas","liquid"]),...controlFields]);
+for(const kind of ["gas-vent","liquid-outlet"])config(kind,controlFields);
 config("probe",[choice("material","Material","florinol",materials),integer("radius","Radius",4,1,12)]);
 config("decider",[choice("signal","Input","florinol",materials.concat(["enable","calculated"])),
  choice("operator","Comparison","<",["<","<=","=",">",">=","!="]),
@@ -115,14 +137,40 @@ config("valve",[choice("material","Material","florinol",materials),
 // Physical two-way separator: LEFT feed, RIGHT accepted, BELOW rejected.
 // A non-matching particle is identified using the public resolved-type read API.
 // Only Liquid/Gas particles are routed, preserving solids in place.
-function filter(s){
+// Safe one-particle transfers, performed only after rechecking the live grid.
+function phaseAt(x,y){
+ const state=api.elements.getMatterTypeAtCell(x,y);
+ return state===enums.MatterType.Liquid?"liquid":
+  state===enums.MatterType.Gas?"gas":null;
+}
+function transport(s,kind){
+ const left=[s.x-1,s.y];
+ const dest=kind==="gas-vent"?[s.x,s.y-1]:
+  kind==="liquid-outlet"?[s.x,s.y+1]:[s.x+1,s.y];
+ api.grid.mutate(w=>{
+  if(s.data?.enabled===false)return;
+  const phase=phaseAt(...left);
+  if(!phase)return;
+  const expected=kind==="gas-vent"?"gas":kind==="liquid-outlet"?"liquid":
+   (s.data?.phase||"both");
+  if(expected!=="both" && expected!==phase)return;
+  if(!empty(...dest))return;
+  const raw=api.elements.getResolvedTypeAtCell(...left);
+  if(raw===null||raw===undefined)return;
+  w.elements.removeAtCell(...left);
+  w.elements.createAtCell(...dest,raw);
+  update(s,{processed:read(s,"processed")+1,value:read(s,"processed")+1});
+ });
+}
+function filter(s,kind="phase-filter"){
  const left=[s.x-1,s.y],right=[s.x+1,s.y],down=[s.x,s.y+1];
  api.grid.mutate(w=>{
   if(s.data?.enabled===false)return;
+  const phase=phaseAt(...left);
+  if(!phase||kind==="gas-filter"&&phase!=="gas"||
+    kind==="liquid-filter"&&phase!=="liquid")return;
   const raw=api.elements.getResolvedTypeAtCell(...left);
   if(raw===null||raw===undefined)return;
-  const matter=api.elements.getMatterTypeAtCell(...left);
-  if(matter!==enums.MatterType.Liquid && matter!==enums.MatterType.Gas)return;
   const material=api.elements.getIdByType(raw);
   if(typeof material!=="string")return;
   const chosen=s.data?.material||"oxygen",allow=s.data?.mode!=="block";
@@ -470,7 +518,8 @@ function circuits(){
    for(const [dx,dy] of offsets)output(s.x+dx,s.y+dy,signal,v);
   });
  }
- for(const type of ["decider","arithmetic","memory","adapter","valve","chip-controller"]){
+ for(const type of ["decider","arithmetic","memory","adapter","valve","chip-controller",
+   "fluid-pump","gas-vent","liquid-outlet","phase-filter","gas-filter","liquid-filter"]){
   api.structures.forEachOfType(id(type),s=>{
    const signal=s.data?.signal||"enable",v=input(s.x-1,s.y,signal);
    if(type==="decider"){
@@ -490,6 +539,13 @@ function circuits(){
     update(s,{active,value:v});api.signals.setOutputAtCell(s.x,s.y,active);
    }else if(type==="valve"){
     update(s,{enabled:v>=read(s,"threshold",1),value:v});
+   }else if(["fluid-pump","gas-vent","liquid-outlet",
+    "phase-filter","gas-filter","liquid-filter"].includes(type)){
+    const side=type==="gas-vent"?[s.x,s.y+1]:[s.x,s.y-1];
+    const signal=s.data?.signal||"enable";
+    const sensed=input(side[0],side[1],signal);
+    const enabled=s.data?.control!=="circuit"||sensed>=read(s,"threshold",1);
+    update(s,{enabled,value:sensed});
    }else if(type==="chip-controller"){
     const signal=s.data?.signal||"florinol";
     const n=input(s.x,s.y-1,signal),lo=read(s,"low",50),hi=Math.max(lo+1,read(s,"high",100));
@@ -508,7 +564,10 @@ api.triggers.register("iono:industrial-cycle",{intervalMs:250,sequentialRunCount
  api.structures.forEachOfType(id("probe"),s=>guard("probe",()=>probe(s)));
  api.structures.forEachOfType(id("power-headroom"),s=>guard("power meter",()=>powerMeter(s)));
  api.structures.forEachOfType(id("valve"),s=>guard("valve",()=>valve(s)));
- api.structures.forEachOfType(id("phase-filter"),s=>guard("phase filter",()=>filter(s)));
+ for(const kind of ["phase-filter","gas-filter","liquid-filter"])
+  api.structures.forEachOfType(id(kind),s=>guard(kind,()=>filter(s,kind)));
+ for(const kind of ["fluid-pump","gas-vent","liquid-outlet"])
+  api.structures.forEachOfType(id(kind),s=>guard(kind,()=>transport(s,kind)));
  api.structures.forEachOfType(id("crystal-grower"),s=>guard("grow crystal",()=>growCrystal(s)));
  api.structures.forEachOfType(id("crystal-cutter"),s=>guard("cut crystal",()=>cutCrystal(s)));
  api.structures.forEachOfType(id("wafer-processor"),s=>guard("prepare wafers",()=>prepareWafers(s)));
@@ -522,7 +581,8 @@ api.triggers.register("iono:industrial-cycle",{intervalMs:250,sequentialRunCount
 // Research is split: practical automation comes earlier, semiconductor industry
 // starts after late refining. New nodes own their own unlock definitions.
 const ta=id("automation"),t8=id("tier8"),t9=id("tier9");
-const controls=["box","tank","wire","decider","arithmetic","memory","phase-filter",
+const controls=["box","tank","wire","decider","arithmetic","memory",
+ "phase-filter","gas-filter","liquid-filter","fluid-pump","gas-vent","liquid-outlet",
  "power-headroom","adapter","valve","probe"].map(id);
 const production8=["crystal-grower","crystal-cutter"].map(id);
 const production9=["wafer-processor","patterning-bench","copper-plater","chip-assembler","chip-carrier","chip-controller"].map(id);
