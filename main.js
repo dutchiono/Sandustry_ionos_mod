@@ -56,7 +56,7 @@ api.events.on("resource:collected",event=>{
  if(event?.resourceId&&Number.isFinite(+event.amount))
   meter(event.resourceId,"collected",Math.max(0,+event.amount));
 });
-const materials=["florinol","silicon","iono-purified-silicon","acid","liquidNickel","auralite","water","sand","quartz","charcoal","oxygen","hydrogen"];
+const materials=["florinol","silicon","iono-purified-silicon","acid","liquidNickel","liquidCopper","liquidGold","gold","goldGranulate","auralite","water","sand","quartz","charcoal","oxygen","hydrogen"];
 const opts=xs=>xs.map(value=>({label:value,value}));
 const choice=(key,label,def,values)=>({type:"choice",id:key,label,default:def,options:opts(values)});
 const integer=(key,label,def,min,max)=>({type:"integer",id:key,label,default:def,min,max});
@@ -174,15 +174,18 @@ fixture("wafer-processor","Wafer Preparation Bench",
 fixture("patterning-bench","Exposure and Etching Bench",
  "Produce patterned wafers from coated wafers using actual Acid; records spent bath.",
  [[1]],{patterned:0,spentBath:0,enabled:true,value:0},213);
-fixture("chip-assembler","Chip Assembly Bench",
- "Fabricate discrete chips from patterned wafers and conductive metal.",
- [[1]],{chips:0,enabled:true,value:0},214);
+fixture("copper-plater","Copper Interconnect Plater",
+ "Patterned wafer enters from LEFT; Liquid Copper enters ABOVE. Creates a held conductive circuit wafer.",
+ [[1]],{circuitWafers:0,enabled:true,value:0},214);
+fixture("chip-assembler","Nickel Chip Packager",
+ "Copper circuit wafer from LEFT; Liquid Nickel ABOVE. Optional Liquid Gold BELOW creates gold-contact chips.",
+ [[1]],{chips:0,goldChips:0,enabled:true,value:0},215);
 fixture("chip-carrier","Chip Carrier",
  "A physical inventory for finished devices: chips are not falling-sand pixels.",
- [[1,1],[1,1]],{chips:0,capacity:64,enabled:true,value:0},215);
+ [[1,1],[1,1]],{chips:0,goldChips:0,capacity:64,enabled:true,value:0},216);
 fixture("chip-controller","Chip-Based Process Controller",
  "Load one CHIP from a physical carrier LEFT; read a sensor bus ABOVE and drive RIGHT output with hysteresis.",
- [[1]],{installed:false,signal:"florinol",low:50,high:100,active:false,value:0,enabled:true},216);
+ [[1]],{installed:false,contactGrade:"none",signal:"florinol",low:50,high:100,active:false,value:0,enabled:true},217);
 config("chip-controller",[
  choice("signal","Measured signal","florinol",["florinol","silicon","charge-headroom","chips","oxygen","hydrogen"]),
  integer("low","Switch ON below",50,0,100000),
@@ -191,13 +194,20 @@ config("chip-controller",[
 function loadChip(s){
  if(s.data?.installed)return;
  const carrier=neighboring(s,"chip-carrier",-1,0);
- if(!carrier||read(carrier,"chips")<1)return;
- update(carrier,{chips:read(carrier,"chips")-1,value:read(carrier,"chips")-1});
- meter("iono-chip","consumed");
- update(s,{installed:true});
+ if(!carrier)return;
+ // Prefer the ordinary nickel-packaged chip; preserve costly gold-contact
+ // variants until needed. An empty standard slot may use a gold chip.
+ const standard=read(carrier,"chips"),gold=read(carrier,"goldChips");
+ if(standard+gold<1)return;
+ const useGold=standard===0;
+ update(carrier,useGold
+  ?{goldChips:gold-1,value:standard+gold-1}
+  :{chips:standard-1,value:standard+gold-1});
+ meter(useGold?"iono-gold-chip":"iono-chip","consumed");
+ update(s,{installed:true,contactGrade:useGold?"gold":"nickel"});
 }
 const WORKPIECE_NAMES=["crystal-grower","crystal-cutter","wafer-processor",
- "patterning-bench","chip-assembler","chip-carrier","chip-controller"];
+ "patterning-bench","copper-plater","chip-assembler","chip-carrier","chip-controller"];
 function neighboring(structure,name,dx,dy){
  // Find the nearest *physically adjacent* workpiece fixture along this axis.
  // Multi-cell fixture anchors may be several cells from the adjoining tool.
@@ -322,26 +332,59 @@ function patternWafers(s){
    value:read(s,"patterned")+1});
  });
 }
+function plateCopper(s){
+ if(s.data?.enabled===false)return;
+ const patterned=neighboring(s,"patterning-bench",-1,0);
+ const copper=[s.x,s.y-1];
+ if(!patterned||read(patterned,"patterned")<1)return;
+ api.grid.mutate(w=>{
+  if(read(patterned,"patterned")<1||!isPixel(...copper,"liquidCopper"))return;
+  w.elements.removeAtCell(...copper);
+  meter("liquidCopper","consumed");
+  meter("iono-patterned-wafer","consumed");
+  meter("iono-circuit-wafer","produced");
+  update(patterned,{patterned:read(patterned,"patterned")-1,
+    value:read(patterned,"patterned")-1});
+  update(s,{circuitWafers:read(s,"circuitWafers")+1,value:read(s,"circuitWafers")+1});
+ });
+}
 function assembleChips(s){
  if(s.data?.enabled===false)return;
- const pattern=neighboring(s,"patterning-bench",-1,0);
- const metal=[s.x,s.y-1];
- if(!pattern||read(pattern,"patterned")<1)return;
+ const copper=neighboring(s,"copper-plater",-1,0);
+ const nickel=[s.x,s.y-1],gold=[s.x,s.y+1];
+ if(!copper||read(copper,"circuitWafers")<1)return;
  api.grid.mutate(w=>{
-  if(read(pattern,"patterned")<1||!isPixel(...metal,"liquidNickel"))return;
-  w.elements.removeAtCell(...metal);
-  meter("liquidNickel","consumed");meter("iono-patterned-wafer","consumed");
-  meter("iono-chip","produced");
-  update(pattern,{patterned:read(pattern,"patterned")-1,value:read(pattern,"patterned")-1});
-  update(s,{chips:read(s,"chips")+1,value:read(s,"chips")+1});
+  if(read(copper,"circuitWafers")<1||!isPixel(...nickel,"liquidNickel"))return;
+  const premium=isPixel(...gold,"liquidGold");
+  w.elements.removeAtCell(...nickel);
+  if(premium)w.elements.removeAtCell(...gold);
+  meter("liquidNickel","consumed");
+  if(premium)meter("liquidGold","consumed");
+  meter("iono-circuit-wafer","consumed");
+  meter(premium?"iono-gold-chip":"iono-chip","produced");
+  update(copper,{circuitWafers:read(copper,"circuitWafers")-1,
+   value:read(copper,"circuitWafers")-1});
+  if(premium)update(s,{goldChips:read(s,"goldChips")+1,
+   value:read(s,"chips")+read(s,"goldChips")+1});
+  else update(s,{chips:read(s,"chips")+1,
+   value:read(s,"chips")+read(s,"goldChips")+1});
  });
 }
 function storeChips(s){
  const assembler=neighboring(s,"chip-assembler",-1,0);
- const count=read(s,"chips"),capacity=cap(s.data?.capacity,1,1024);
- if(!assembler||count>=capacity||read(assembler,"chips")<1)return;
- update(assembler,{chips:read(assembler,"chips")-1,value:read(assembler,"chips")-1});
- update(s,{chips:count+1,value:count+1});
+ const count=read(s,"chips"),gold=read(s,"goldChips");
+ const capacity=cap(s.data?.capacity,1,1024);
+ if(!assembler||count+gold>=capacity)return;
+ // Standard and gold-contact variants occupy separate physical carrier slots.
+ const standard=read(assembler,"chips"),premium=read(assembler,"goldChips");
+ if(standard+premium===0)return;
+ if(standard>0){
+  update(assembler,{chips:standard-1,value:standard+premium-1});
+  update(s,{chips:count+1,value:count+gold+1});
+ }else{
+  update(assembler,{goldChips:premium-1,value:standard+premium-1});
+  update(s,{goldChips:gold+1,value:count+gold+1});
+ }
 }
 for(const name of WORKPIECE_NAMES){
  api.signals.targets.register(id(name),(s,p)=>update(s,{enabled:!!p.combined}));
@@ -470,6 +513,7 @@ api.triggers.register("iono:industrial-cycle",{intervalMs:250,sequentialRunCount
  api.structures.forEachOfType(id("crystal-cutter"),s=>guard("cut crystal",()=>cutCrystal(s)));
  api.structures.forEachOfType(id("wafer-processor"),s=>guard("prepare wafers",()=>prepareWafers(s)));
  api.structures.forEachOfType(id("patterning-bench"),s=>guard("pattern wafers",()=>patternWafers(s)));
+ api.structures.forEachOfType(id("copper-plater"),s=>guard("copper deposition",()=>plateCopper(s)));
  api.structures.forEachOfType(id("chip-assembler"),s=>guard("assemble chips",()=>assembleChips(s)));
  api.structures.forEachOfType(id("chip-carrier"),s=>guard("store chips",()=>storeChips(s)));
  api.structures.forEachOfType(id("chip-controller"),s=>guard("load chip",()=>loadChip(s)));
@@ -481,7 +525,7 @@ const ta=id("automation"),t8=id("tier8"),t9=id("tier9");
 const controls=["box","tank","wire","decider","arithmetic","memory","phase-filter",
  "power-headroom","adapter","valve","probe"].map(id);
 const production8=["crystal-grower","crystal-cutter"].map(id);
-const production9=["wafer-processor","patterning-bench","chip-assembler","chip-carrier","chip-controller"].map(id);
+const production9=["wafer-processor","patterning-bench","copper-plater","chip-assembler","chip-carrier","chip-controller"].map(id);
 // Research registry: definitions, nodes, and unlocks are separate Sandkit calls.
 // Tier 8 is attached to the actual Refining8 node; automation branches earlier.
 guard("register research",()=>{
