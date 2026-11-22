@@ -51,6 +51,8 @@ structure("valve","Signal Valve","Uses LEFT cable enable signal to move material
  {signal:"enable",material:"florinol",threshold:1,enabled:false,value:0},"logistics","door");
 structure("phase-filter","Fluid / Gas Separator","Route chosen gas or liquid from LEFT to RIGHT; all other selected fluid/gas particles exit BELOW. Never destroys rejected material.",
  {material:"oxygen",mode:"allow",enabled:true,passed:0,rejected:0,value:0},"logistics","collector");
+structure("power-headroom","Power Network Meter","Measures the free charge capacity of the physically adjoining power network, as numeric cable signal.",
+ {value:0,stored:0,material:"charge-headroom"},"logistics","collector");
 structure("probe","Area Probe","Count actual pixels in a bounded area; connect data cable.",
  {material:"florinol",radius:4,value:0});
 for(const [name,mat,size] of [["box","silicon",256],["tank","florinol",512]])
@@ -179,6 +181,12 @@ function valve(s){
    w.elements.removeAtCell(...left);w.elements.createAtCell(...right,m);
   }});
 }
+// Energy measurement is *local* to the structure's connected power network, never global.
+function powerMeter(s){
+ const free=api.energy.getNetworkFreeCapacityAtCell(s.x,s.y);
+ const value=Number.isFinite(free)?cap(free,0,1000000):0;
+ if(read(s,"value")!==value)update(s,{value});
+}
 // Physical cable networks; inputs and outputs are sampled on successive clock cycles.
 let lastSignals=new Map();
 function circuits(){
@@ -202,7 +210,7 @@ function circuits(){
  const input=(x,y,signal)=>{const n=bus(x,y);return n===undefined?0:old[n][signal]||0;};
  const output=(x,y,signal,v)=>{const n=bus(x,y);if(n===undefined)return;
   current[n][signal]=cap((current[n][signal]||0)+v,-1000000,1000000);};
- for(const type of ["box","tank","probe"]){
+ for(const type of ["box","tank","probe","power-headroom"]){
   api.structures.forEachOfType(id(type),s=>{
    const signal=s.data?.material||"florinol",v=read(s,"value");
    for(const [dx,dy] of offsets)output(s.x+dx,s.y+dy,signal,v);
@@ -238,6 +246,7 @@ api.signals.registerSenderType(id("adapter"),s=>!!s.data?.active);
 api.triggers.register("iono:industrial-cycle",{interval:30,sequentialRuns:1,extra:{},callback:()=>{
  for(const kind of ["box","tank"])api.structures.forEachOfType(id(kind),s=>guard(kind,()=>storage(s)));
  api.structures.forEachOfType(id("probe"),s=>guard("probe",()=>probe(s)));
+ api.structures.forEachOfType(id("power-headroom"),s=>guard("power meter",()=>powerMeter(s)));
  api.structures.forEachOfType(id("valve"),s=>guard("valve",()=>valve(s)));
  api.structures.forEachOfType(id("phase-filter"),s=>guard("phase filter",()=>filter(s)));
  for(const [short,,a,b,out] of MACHINES)
@@ -252,7 +261,7 @@ const tech9={name:"Tier 9: Autonomous Industry",description:"High-tier Aura and 
 guard("research 8",()=>{
  api.tech.registerDefinition(t8,tech8);
  api.tech.registerNode(t8,tech8,{parentId:enums.Tech.SignalDevices});
- api.tech.conservatory.appendUnlock(t8,{structures:["box","tank","wire","decider","arithmetic","memory","phase-filter",
+ api.tech.conservatory.appendUnlock(t8,{structures:["box","tank","wire","decider","arithmetic","memory","phase-filter","power-headroom",
  "adapter","valve","probe",...MACHINES.filter(m=>m[5]===8).map(m=>m[0])].map(id)});
 });
 guard("research 9",()=>{
