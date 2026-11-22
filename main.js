@@ -169,8 +169,23 @@ fixture("chip-assembler","Chip Assembly Bench",
 fixture("chip-carrier","Chip Carrier",
  "A physical inventory for finished devices: chips are not falling-sand pixels.",
  [[1,1],[1,1]],{chips:0,capacity:64,enabled:true,value:0},215);
+fixture("chip-controller","Chip-Based Process Controller",
+ "Load one CHIP from a physical carrier LEFT; read a sensor bus ABOVE and drive RIGHT output with hysteresis.",
+ [[1]],{installed:false,signal:"florinol",low:50,high:100,active:false,value:0,enabled:true},216);
+config("chip-controller",[
+ choice("signal","Measured signal","florinol",["florinol","silicon","charge-headroom","chips","oxygen","hydrogen"]),
+ integer("low","Switch ON below",50,0,100000),
+ integer("high","Switch OFF above",100,0,100000)
+]);
+function loadChip(s){
+ if(s.data?.installed)return;
+ const carrier=neighboring(s,"chip-carrier",-1,0);
+ if(!carrier||read(carrier,"chips")<1)return;
+ update(carrier,{chips:read(carrier,"chips")-1,value:read(carrier,"chips")-1});
+ update(s,{installed:true});
+}
 const WORKPIECE_NAMES=["crystal-grower","crystal-cutter","wafer-processor",
- "patterning-bench","chip-assembler","chip-carrier"];
+ "patterning-bench","chip-assembler","chip-carrier","chip-controller"];
 function neighboring(structure,name,dx,dy){
  // Find the nearest *physically adjacent* workpiece fixture along this axis.
  // Multi-cell fixture anchors may be several cells from the adjoining tool.
@@ -360,7 +375,7 @@ function circuits(){
    for(const [dx,dy] of offsets)output(s.x+dx,s.y+dy,signal,v);
   });
  }
- for(const type of ["decider","arithmetic","memory","adapter","valve"]){
+ for(const type of ["decider","arithmetic","memory","adapter","valve","chip-controller"]){
   api.structures.forEachOfType(id(type),s=>{
    const signal=s.data?.signal||"enable",v=input(s.x-1,s.y,signal);
    if(type==="decider"){
@@ -380,6 +395,12 @@ function circuits(){
     update(s,{active,value:v});api.signals.setOutputAtCell(s.x,s.y,active);
    }else if(type==="valve"){
     update(s,{enabled:v>=read(s,"threshold",1),value:v});
+   }else if(type==="chip-controller"){
+    const signal=s.data?.signal||"florinol";
+    const n=input(s.x,s.y-1,signal),lo=read(s,"low",50),hi=Math.max(lo+1,read(s,"high",100));
+    const active=s.data?.installed && s.data?.enabled!==false && (n<lo?true:n>hi?false:!!s.data?.active);
+    output(s.x+1,s.y,"enable",active?1:0);
+    if(s.data?.active!==active||read(s,"value")!==n)update(s,{active,value:n});
    }
   });
  }
@@ -400,6 +421,7 @@ api.triggers.register("iono:industrial-cycle",{interval:30,sequentialRuns:1,extr
  api.structures.forEachOfType(id("patterning-bench"),s=>guard("pattern wafers",()=>patternWafers(s)));
  api.structures.forEachOfType(id("chip-assembler"),s=>guard("assemble chips",()=>assembleChips(s)));
  api.structures.forEachOfType(id("chip-carrier"),s=>guard("store chips",()=>storeChips(s)));
+ api.structures.forEachOfType(id("chip-controller"),s=>guard("load chip",()=>loadChip(s)));
  guard("numeric wiring",circuits);
 }});
 // Research is split: practical automation comes earlier, semiconductor industry
@@ -408,7 +430,7 @@ const ta=id("automation"),t8=id("tier8"),t9=id("tier9");
 const controls=["box","tank","wire","decider","arithmetic","memory","phase-filter",
  "power-headroom","adapter","valve","probe"].map(id);
 const production8=["crystal-grower","crystal-cutter"].map(id);
-const production9=["wafer-processor","patterning-bench","chip-assembler","chip-carrier"].map(id);
+const production9=["wafer-processor","patterning-bench","chip-assembler","chip-carrier","chip-controller"].map(id);
 guard("automation research",()=>api.tech.registerNode(ta,{
  name:"Industrial Automation",description:"Instrument actual storage, flow, gases and power.",
  branch:"logistics",cost:2400,currencyType:"gold",
