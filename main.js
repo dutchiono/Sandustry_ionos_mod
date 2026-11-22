@@ -168,12 +168,13 @@ function neighboring(structure,name,dx,dy){
 // changes real terrain and therefore invalidates the source inventory on next scan.
 const INGOT=id("silicon-ingot");
 const CRYSTAL_WIDTH=3;
+function ingotLimit(s){return Math.max(3,Math.floor(cap(s.data?.maxMass,3,48)/CRYSTAL_WIDTH)*CRYSTAL_WIDTH);}
 function ingotPoint(s,index){
  return [s.x+1+(index%CRYSTAL_WIDTH),
   s.y-1-Math.floor(index/CRYSTAL_WIDTH)];
 }
 function crystalCells(s){
- const out=[],max=cap(s.data?.maxMass,3,48);
+ const out=[],max=ingotLimit(s);
  for(let i=0;i<max;i++){
   const xy=ingotPoint(s,i);
   if(!api.terrains.isTypeAtCell(...xy,INGOT))break;
@@ -183,7 +184,7 @@ function crystalCells(s){
 }
 function growCrystal(s){
  if(s.data?.enabled===false)return;
- const cells=crystalCells(s),max=cap(s.data?.maxMass,3,48);
+ const cells=crystalCells(s),max=ingotLimit(s);
  if(s.data?.harvesting){
   if(cells.length===0)update(s,{harvesting:false,crystalMass:0,complete:false,value:0});
   return;
