@@ -82,26 +82,23 @@ config("valve",[choice("material","Material","florinol",materials),
 // A non-matching particle is identified using the public resolved-type read API.
 // Only Liquid/Gas particles are routed, preserving solids in place.
 function filter(s){
- if(s.data?.enabled===false)return;
  const left=[s.x-1,s.y],right=[s.x+1,s.y],down=[s.x,s.y+1];
- const raw=api.elements.getResolvedTypeAtCell(...left);
- if(raw===null||raw===undefined)return;
- const matter=api.elements.getMatterTypeAtCell(...left);
- if(matter!==enums.MatterType.Liquid && matter!==enums.MatterType.Gas)return;
- const material=api.elements.getIdByType(raw);
- if(typeof material!=="string")return;
- const chosen=s.data?.material||"oxygen",allow=s.data?.mode!=="block";
- const accepted=(material===chosen)===allow;
- const out=accepted?right:down;
- if(!empty(...out))return;
  api.grid.mutate(w=>{
-  const present=api.elements.getResolvedTypeAtCell(...left);
-  if(present!==raw||!empty(...out))return;
+  if(s.data?.enabled===false)return;
+  const raw=api.elements.getResolvedTypeAtCell(...left);
+  if(raw===null||raw===undefined)return;
+  const matter=api.elements.getMatterTypeAtCell(...left);
+  if(matter!==enums.MatterType.Liquid && matter!==enums.MatterType.Gas)return;
+  const material=api.elements.getIdByType(raw);
+  if(typeof material!=="string")return;
+  const chosen=s.data?.material||"oxygen",allow=s.data?.mode!=="block";
+  const accepted=(material===chosen)===allow,out=accepted?right:down;
+  if(!empty(...out))return;
   w.elements.removeAtCell(...left);
   w.elements.createAtCell(...out,raw);
+  const field=accepted?"passed":"rejected";
+  update(s,{[field]:read(s,field)+1,value:read(s,field)+1});
  });
- const field=accepted?"passed":"rejected";
- update(s,{[field]:read(s,field)+1,value:read(s,field)+1});
 }
 // Industrial recipes use two ACTUAL input pixels, one on left and one above.
 const MACHINES=[
@@ -121,20 +118,17 @@ structure("orbital-terminal","Orbital Supply Terminal",
  {enabled:true,processed:0,intervalStreak:0,lastProducedAt:0,value:0},"industrial","collector");
 api.signals.targets.register(id("orbital-terminal"),(s,p)=>update(s,{enabled:!!p.combined}));
 function orbital(s){
- if(s.data?.enabled===false)return;
  const l=[s.x-1,s.y],u=[s.x,s.y-1],d=[s.x,s.y+1],r=[s.x+1,s.y];
- if(!isPixel(...l,"iono-supervisor")||!isPixel(...u,"iono-wafer")||
-    !isPixel(...d,"iono-process-medium")||!empty(...r))return;
  api.grid.mutate(w=>{
-  if(!isPixel(...l,"iono-supervisor")||!isPixel(...u,"iono-wafer")||
+  if(s.data?.enabled===false || !isPixel(...l,"iono-supervisor")||!isPixel(...u,"iono-wafer")||
      !isPixel(...d,"iono-process-medium")||!empty(...r))return;
   w.elements.removeAtCell(...l);w.elements.removeAtCell(...u);w.elements.removeAtCell(...d);
   w.elements.createAtCell(...r,"iono-orbital-shipment");
+  const now=api.time.getElapsedMs();
+  const streak=now-read(s,"lastProducedAt")<=5000?read(s,"intervalStreak")+1:1;
+  update(s,{processed:read(s,"processed")+1,intervalStreak:streak,
+   lastProducedAt:now,value:streak});
  });
- const now=api.time.getElapsedMs();
- const streak=now-read(s,"lastProducedAt")<=5000?read(s,"intervalStreak")+1:1;
- update(s,{processed:read(s,"processed")+1,intervalStreak:streak,
- lastProducedAt:now,value:streak});
 }
 for(const [short,name,a,b,out,tier] of MACHINES){
  structure(short,name,"T"+tier+" LEFT: "+a+" + ABOVE: "+b+" -> RIGHT: "+out,
@@ -142,17 +136,22 @@ for(const [short,name,a,b,out,tier] of MACHINES){
  api.signals.targets.register(id(short),(s,p)=>update(s,{enabled:!!p.combined}));
 }
 function storage(s){
- const m=s.data?.material||"silicon",limit=cap(s.data?.capacity,1,4096),
- stored=cap(s.data?.stored,0,limit),left=[s.x-1,s.y],right=[s.x+1,s.y];
- if(stored<limit && isPixel(...left,m)){
-  api.grid.mutate(w=>{if(isPixel(...left,m))w.elements.removeAtCell(...left);});
-  update(s,{stored:stored+1,value:stored+1});return;
- }
- if(stored>0 && read(s,"release",1)>0 && empty(...right)){
-  api.grid.mutate(w=>{if(empty(...right))w.elements.createAtCell(...right,m);});
-  update(s,{stored:stored-1,value:stored-1});return;
- }
- if(read(s,"value")!==stored)update(s,{value:stored});
+ const m=s.data?.material||"silicon",limit=cap(s.data?.capacity,1,4096);
+ const left=[s.x-1,s.y],right=[s.x+1,s.y];
+ // Carry the inventory update inside the idle mutation to prevent phantom additions
+ // if another machine changes the inlet between scheduling and commit.
+ api.grid.mutate(w=>{
+  const stored=cap(s.data?.stored,0,limit);
+  if(stored<limit && isPixel(...left,m)){
+   w.elements.removeAtCell(...left);
+   update(s,{stored:stored+1,value:stored+1});return;
+  }
+  if(stored>0 && read(s,"release",1)>0 && empty(...right)){
+   w.elements.createAtCell(...right,m);
+   update(s,{stored:stored-1,value:stored-1});return;
+  }
+  if(read(s,"value")!==stored)update(s,{value:stored});
+ });
 }
 function probe(s){
  const radius=cap(s.data?.radius,1,12),m=s.data?.material||"florinol";
@@ -165,21 +164,20 @@ function probe(s){
 function reaction(s,a,b,out){
  if(s.data?.enabled===false)return;
  const left=[s.x-1,s.y],top=[s.x,s.y-1],right=[s.x+1,s.y];
- if(!isPixel(...left,a)||!isPixel(...top,b)||!empty(...right))return;
  api.grid.mutate(w=>{
-  if(!isPixel(...left,a)||!isPixel(...top,b)||!empty(...right))return;
+  if(s.data?.enabled===false || !isPixel(...left,a)||!isPixel(...top,b)||!empty(...right))return;
   w.elements.removeAtCell(...left);w.elements.removeAtCell(...top);
   w.elements.createAtCell(...right,out);
+  update(s,{processed:read(s,"processed")+1,value:read(s,"processed")+1});
  });
- update(s,{processed:read(s,"processed")+1,value:read(s,"processed")+1});
 }
 function valve(s){
- if(!s.data?.enabled)return;
  const m=s.data?.material||"florinol",left=[s.x-1,s.y],right=[s.x+1,s.y];
- if(isPixel(...left,m)&&empty(...right))
-  api.grid.mutate(w=>{if(isPixel(...left,m)&&empty(...right)){
+ api.grid.mutate(w=>{
+  if(s.data?.enabled && isPixel(...left,m) && empty(...right)){
    w.elements.removeAtCell(...left);w.elements.createAtCell(...right,m);
-  }});
+  }
+ });
 }
 // Energy measurement is *local* to the structure's connected power network, never global.
 function powerMeter(s){
