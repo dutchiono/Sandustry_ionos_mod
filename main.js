@@ -408,7 +408,7 @@ function circuits(){
  groups.forEach((g,n)=>g.forEach(k=>lastSignals.set(k,current[n])));
 }
 api.signals.registerSenderType(id("adapter"),s=>!!s.data?.active);
-api.triggers.register("iono:industrial-cycle",{interval:30,sequentialRuns:1,extra:{},callback:()=>{
+api.triggers.register("iono:industrial-cycle",{intervalMs:250,sequentialRunCount:1,callback:()=>{
  for(const kind of ["box","tank"])api.structures.forEachOfType(id(kind),s=>guard(kind,()=>storage(s)));
  api.structures.forEachOfType(id("probe"),s=>guard("probe",()=>probe(s)));
  api.structures.forEachOfType(id("power-headroom"),s=>guard("power meter",()=>powerMeter(s)));
@@ -431,21 +431,31 @@ const controls=["box","tank","wire","decider","arithmetic","memory","phase-filte
  "power-headroom","adapter","valve","probe"].map(id);
 const production8=["crystal-grower","crystal-cutter"].map(id);
 const production9=["wafer-processor","patterning-bench","chip-assembler","chip-carrier","chip-controller"].map(id);
-guard("automation research",()=>api.tech.registerNode(ta,{
- name:"Industrial Automation",description:"Instrument actual storage, flow, gases and power.",
- branch:"logistics",cost:2400,currencyType:"gold",
- requires:enums.Tech.SignalDevices,unlocks:{structures:controls}
-},{parentId:enums.Tech.SignalDevices}));
-guard("tier 8 research",()=>api.tech.registerNode(t8,{
- name:"Tier 8: Instrumentation & Fabrication",
- description:"Grow a physical Silicon crystal and cut it into held wafer workpieces.",
- branch:"refining",cost:18000,currencyType:"gold",
- requires:[enums.Tech.Refining8,ta],unlocks:{structures:production8}
-},{parentId:enums.Tech.Refining8}));
-guard("tier 9 research",()=>api.tech.registerNode(t9,{
- name:"Tier 9: Autonomous Industry",
- description:"Process discrete wafers with oxygen, Florinol, Acid and metal to make chips.",
- branch:"refining",cost:48000,currencyType:"gold",
- requires:t8,unlocks:{structures:production9}
-},{parentId:t8}));
+// Research registry: definitions, nodes, and unlocks are separate Sandkit calls.
+// Tier 8 is attached to the actual Refining8 node; automation branches earlier.
+guard("register research",()=>{
+ const base=enums.Tech.SignalDevices,refinery=enums.Tech.Refining8;
+ const defAuto={
+  name:"Industrial Automation",
+  description:"Physical storage, probes, liquid/gas sorting and numerical wired logic.",
+  branch:"logistics",cost:2400,currencyType:"gold"
+ };
+ const def8={
+  name:"Tier 8: Silicon Crystal Engineering",
+  description:"Purify Silicon using your existing Smelter; grow and cut real silicon ingots.",
+  branch:"refining",cost:18000,currencyType:"gold"
+ };
+ const def9={
+  name:"Tier 9: Wafer and Chip Production",
+  description:"Process wafers with oxygen, Florinol and Acid; assemble installable logic chips.",
+  branch:"refining",cost:48000,currencyType:"gold"
+ };
+ for(const [tech,def,parent] of [[ta,defAuto,base],[t8,def8,refinery],[t9,def9,t8]]){
+  api.tech.registerDefinition(tech,def);
+  api.tech.registerNode(tech,def,{parentId:parent});
+ }
+ api.tech.conservatory.appendUnlock(ta,{structures:controls});
+ api.tech.conservatory.appendUnlock(t8,{structures:production8});
+ api.tech.conservatory.appendUnlock(t9,{structures:production9});
+});
 api.events.on("game:ready",()=>guard("welcome",()=>api.ui.toast("Iono Expansion loaded: physical controls and wafer fabrication.")));
