@@ -88,27 +88,53 @@ test('registers real ingot terrain, no chip pixels, and vanilla silicon input re
  assert.ok(f.nodes.has('iono-tier8')&&f.nodes.has('iono-tier9'));
  assert.equal(f.errors.length,0);
 });
-test('each ingot terrain cell consumes exactly one existing silicon pixel',()=>{
- const f=fixture(),g=f.place('crystal-grower',10,10,{maxMass:8});
+test('physical extruder consumes 3 purified silicon pixels per 3-high section',()=>{
+ const f=fixture(),ex=f.place('crystal-grower',10,10);
+ for(let i=0;i<2;i++){f.put(9,10,'iono-purified-silicon');f.run();}
+ assert.equal(f.solid.size,0);
+ assert.equal(ex.data.feedBuffer,2);
  f.put(9,10,'iono-purified-silicon');f.run();
- assert.equal(f.get(9,10),undefined);
- assert.equal(f.solid.get('11:9'),'iono-silicon-ingot');
- assert.equal(g.data.crystalMass,1);
- f.run();assert.equal(g.data.crystalMass,1);
- f.put(9,10,'iono-purified-silicon');f.run();
- assert.equal(f.solid.get('12:9'),'iono-silicon-ingot');
- assert.equal(g.data.crystalMass,2);
+ assert.equal(f.solid.size,3);
+ assert.equal(ex.data.feedBuffer,0);
+ for(const y of [9,8,7])assert.equal(f.solid.get('11:'+y),'iono-silicon-ingot');
 });
-test('external demolition is observed; cutter earns wafer only for three real terrain slices',()=>{
- const f=fixture(),g=f.place('crystal-grower',10,10,{maxMass:6});
- for(let i=0;i<6;i++){f.put(9,10,'iono-purified-silicon');f.run();}
- assert.equal(g.data.complete,true);assert.equal(f.solid.size,6);
- const cut=f.place('crystal-cutter',14,10);
- f.run();assert.equal(cut.data.wafers,0);assert.equal(f.solid.size,5);
- // Each horizontal 3-cell slice yields a held wafer.
- f.run(5);assert.equal(cut.data.wafers,2);assert.equal(f.solid.size,0);
- f.put(9,10,'iono-purified-silicon');f.run();assert.equal(g.data.crystalMass,1);
- f.solid.clear();f.run();assert.equal(g.data.crystalMass,0);
+test('solid ingot moves through every position and cutter only cuts at its own face',()=>{
+ const f=fixture(),ex=f.place('crystal-grower',10,10),c=f.place('crystal-cutter',17,10);
+ for(let i=0;i<15;i++){f.put(9,10,'iono-purified-silicon');f.run();}
+ assert.equal(c.data.cutCount,0);
+ assert.equal(f.solid.size,15);
+ assert.equal(f.solid.get('15:9'),'iono-silicon-ingot');
+ f.put(9,10,'iono-purified-silicon');f.run();
+ f.put(9,10,'iono-purified-silicon');f.run();
+ f.put(9,10,'iono-purified-silicon');f.run();
+ assert.equal(c.data.cutCount,1);
+ assert.equal(c.data.wafers,0);
+ assert.equal(f.solid.get('16:9'),undefined);
+ f.run(2);
+ assert.equal(c.data.wafers,1);
+ assert.equal(f.solid.size,15);
+ assert.equal(ex.data.crystalMass,15);
+});
+test('blocked extrusion stops advancement without consuming batch silicon',()=>{
+ const f=fixture(),ex=f.place('crystal-grower',10,10);
+ for(let i=0;i<2;i++){f.put(9,10,'iono-purified-silicon');f.run();}
+ f.put(12,8,'water');
+ f.put(9,10,'iono-purified-silicon');f.run();
+ // First new section is at x11 and may grow despite the obstruction farther ahead.
+ assert.equal(f.solid.size,3);
+ for(let i=0;i<2;i++){f.put(9,10,'iono-purified-silicon');f.run();}
+ f.put(9,10,'iono-purified-silicon');f.run();
+ assert.equal(f.solid.size,3);
+ assert.equal(f.get(9,10),'iono-purified-silicon');
+ assert.equal(ex.data.feedBuffer,2);
+});
+test('full track without a cutter applies backpressure to input',()=>{
+ const f=fixture(),ex=f.place('crystal-grower',10,10);
+ for(let i=0;i<18;i++){f.put(9,10,'iono-purified-silicon');f.run();}
+ assert.equal(f.solid.size,18);
+ f.put(9,10,'iono-purified-silicon');f.run(2);
+ assert.equal(f.get(9,10),'iono-purified-silicon');
+ assert.equal(ex.data.crystalMass,18);
 });
 test('chip fabrication consumes held workpieces, not spawned chip particles',()=>{
  const f=fixture();
@@ -125,11 +151,6 @@ test('chip fabrication consumes held workpieces, not spawned chip particles',()=
  const carrier=f.place('chip-carrier',14,10);
  f.run();assert.equal(assemble.data.chips,0);assert.equal(carrier.data.chips,1);
  assert.equal([...f.particles.values()].some(x=>x.includes('chip')),false);
-});
-test('blocked ingot space never consumes silicon',()=>{
- const f=fixture();f.place('crystal-grower',10,10);
- f.put(9,10,'iono-purified-silicon');f.put(11,9,'water');f.run();
- assert.equal(f.get(9,10),'iono-purified-silicon');assert.equal(f.solid.size,0);
 });
 test('binary numerical control pipeline can read local physical storage',()=>{
  const f=fixture(),box=f.place('box',8,10,{material:'silicon',stored:50,value:50,release:0});
