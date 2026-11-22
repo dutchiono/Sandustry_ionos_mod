@@ -28,19 +28,25 @@ These are mock/simulation tests, not proof of compatibility with the game binary
 
 **Inventory law:** 3 purified-silicon pixels = one three-cell-high section = eventually one wafer. If partially cut, the remaining terrain plus the cutter's progress tracks the consumed work. Buffer state is stored on the extruder. No remote transport occurs.
 
-## Wafer processing and chip production (Tier 9)
+## Wafer processing, copper deposition and chip packaging (Tier 9)
 
-Each bench is **one cell** and should be placed immediately to the right of its previous station. They transfer held workpieces, without a falling-sand chip element.
+Silicon is produced with the vanilla Reaction Chamber and smelted into Purified Silicon in the existing heated Smelter. After extrusion and slicing, the **wafer is a held workpiece, not a falling-sand pixel**.
 
-| Step | Machine | Physically required materials | Result |
-|---|---|---|---|
-| 1 | Wafer Preparation Bench | held wafer from cutter on LEFT; Oxygen ABOVE; Florinol BELOW | 1 held coated wafer |
-| 2 | Exposure & Etching Bench | held coated wafer from bench on LEFT; Acid ABOVE | 1 held patterned wafer and 1 unit spent bath |
-| 3 | Chip Assembly Bench | held patterned wafer from bench on LEFT; Liquid Nickel ABOVE | 1 finished chip in local inventory |
-| 4 | Chip Carrier | finished chip from assembler on LEFT | up to 64 discrete chips |
-| 5 | Chip Process Controller | chip from carrier on LEFT; numerical signal cable ABOVE; output cable RIGHT | consumes one chip when installed, drives hysteretic ON/OFF |
+| Stage | Physical feeds | Discrete machine output |
+|---|---|---|
+| Wafer Preparation | held wafer on LEFT, Oxygen ABOVE, Florinol BELOW | coated wafer |
+| Exposure & Etching | coated wafer on LEFT, Acid ABOVE | patterned wafer, spent-bath counter |
+| Copper Interconnect Plater | patterned wafer on LEFT, **Liquid Copper ABOVE** | copper-plated circuit wafer |
+| Nickel Chip Packager | circuit wafer on LEFT, **Liquid Nickel ABOVE** | ordinary packaged chip |
+| Optional gold contact plating | same packager, **Liquid Gold BELOW** in addition to Nickel | gold-contact packaged chip |
+| Chip Carrier | output from packager on LEFT | holds separate ordinary and gold-chip counts |
+| Chip Process Controller | carrier on LEFT | consumes one ordinary chip if available; otherwise a gold chip |
 
-Florinol serving as a photoresist is **invented Sandustry chemistry**. Oxidation and exposure are currently combined into a bench recipe; the source does not yet simulate a moving mask or actual laser illumination. Spent bath is held as a local counter, not a fully modeled acid-recovery liquid. These choices are intentionally small-scale, but are not a complete photolithography simulation.
+The intent is not a random Copper+Nickel alloy. **Copper forms the conductive traces; Nickel packages and plates the external contacts.** Gold is an optional higher-grade contact finish, with one Liquid Gold pixel consumed only when that feed is present. None of these chip types becomes a loose sand element.
+
+**Existing Gold forms:** Gold, Liquid Gold, Gold Granulate and Gold Vapor are listed in the game's material index. This mod currently uses only **Liquid Gold** in the optional chip finish. It does **not** assume a conversion from Gold Granulate or Gold Vapor because those recipes have not been verified.
+
+A real silicon chip also needs controlled doping, masking and deposition conditions. The currently coded benches are *Sandustry-scale abstractions* rather than a chemically complete fabrication simulator. Florinol's proposed photoresist behavior is fictional.
 
 ## Automation
 
