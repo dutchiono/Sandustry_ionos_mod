@@ -38,7 +38,7 @@ function fixture(){
   },
   tech:{registerDefinition:(id,d)=>nodes.set(id,d),
     registerNode:()=>{},conservatory:{appendUnlock:()=>{}}},
-  events:{on:()=>{}},ui:{toast:()=>{}}
+  events:{on:()=>{}},ui:{toast:()=>{}},time:{getElapsedMs:()=>Date.now()}
  };
  const enums={MatterType:{Powder:1,Liquid:2},Tech:{SignalDevices:1}};
  vm.runInNewContext(source,{sandkit:{api,enums},console});
@@ -52,9 +52,9 @@ function fixture(){
  const run=()=>callbacks.get('iono:industrial-cycle')();
  return {structures,elements,instances,place,put,run,mut,senders,targets,nodes};
 }
-test('registers 7 real products, 2 tiers and 7 processors',()=>{
+test('registers 8 real products, 2 tiers and industrial processors',()=>{
  const f=fixture();
- assert.equal(f.elements.size,7);
+ assert.equal(f.elements.size,8);
  assert.ok(f.nodes.has('iono-tier8')&&f.nodes.has('iono-tier9'));
  for(const kind of ['wafer-furnace','etcher','module-assembler','etchant-bath','reclaimer','core-forge','supervisor-assembler'])
  assert.ok(f.structures.has('iono-'+kind));
@@ -85,4 +85,16 @@ test('numeric cable transmits local storage amount to decider with tick delay',(
  f.run();f.run();f.run();
  assert.equal(adapter.data.active,true);
  assert.equal(box.data.stored,50);
+});
+
+test('Tier 9 orbital terminal consumes three inputs to deliver a shipment',()=>{
+ const f=fixture();
+ const s=f.place('orbital-terminal',10,10);
+ f.put('iono-supervisor',9,10);
+ f.put('iono-wafer',10,9);
+ f.put('iono-process-medium',10,11);
+ f.run();
+ assert.equal(s.data.processed,1);
+ assert.equal(f.mut.length,1);
+ assert.equal(f.mut[0].type,'iono-orbital-shipment');
 });
