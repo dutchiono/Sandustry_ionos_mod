@@ -96,17 +96,17 @@ test('each ingot terrain cell consumes exactly one existing silicon pixel',()=>{
  assert.equal(g.data.crystalMass,1);
  f.run();assert.equal(g.data.crystalMass,1);
  f.put(9,10,'iono-purified-silicon');f.run();
- assert.equal(f.solid.get('11:8'),'iono-silicon-ingot');
+ assert.equal(f.solid.get('12:9'),'iono-silicon-ingot');
  assert.equal(g.data.crystalMass,2);
 });
-test('external demolition is observed; cutter only earns wafer for four actual cut cells',()=>{
- const f=fixture(),g=f.place('crystal-grower',10,10,{maxMass:4});
- for(let i=0;i<4;i++){f.put(9,10,'iono-purified-silicon');f.run();}
- assert.equal(g.data.complete,true);assert.equal(f.solid.size,4);
- const cut=f.place('crystal-cutter',12,10);
- f.run();assert.equal(cut.data.wafers,0);assert.equal(f.solid.size,3);
- // Cutter removes one per tick; no second wafer until four more cuts.
- f.run(3);assert.equal(cut.data.wafers,1);assert.equal(f.solid.size,0);
+test('external demolition is observed; cutter earns wafer only for three real terrain slices',()=>{
+ const f=fixture(),g=f.place('crystal-grower',10,10,{maxMass:6});
+ for(let i=0;i<6;i++){f.put(9,10,'iono-purified-silicon');f.run();}
+ assert.equal(g.data.complete,true);assert.equal(f.solid.size,6);
+ const cut=f.place('crystal-cutter',14,10);
+ f.run();assert.equal(cut.data.wafers,0);assert.equal(f.solid.size,5);
+ // Each horizontal 3-cell slice yields a held wafer.
+ f.run(5);assert.equal(cut.data.wafers,2);assert.equal(f.solid.size,0);
  f.put(9,10,'iono-purified-silicon');f.run();assert.equal(g.data.crystalMass,1);
  f.solid.clear();f.run();assert.equal(g.data.crystalMass,0);
 });
