@@ -11,8 +11,8 @@ An experimental Sandkit mod for Sandustry 0.6.x, built around **real pixel physi
 ### Industry — native-first
 - **Vanilla Quartz → Grinder → Silica → Reaction Chamber + Charcoal → Silicon** remains unchanged.
 - Existing **heat-powered Smelter** gains a Silicon → Purified Silicon processing recipe.
-- **Silicon Crystal Growth Fixture** consumes purified Silicon from its left inlet. Each supplied particle becomes **one visible, solid, mineable terrain cell** in a single vertical ingot above the fixture. Growth stops if blocked.
-- **Crystal Cutter** placed two cells to the right cuts an ingot only after it reaches its selected size. Every **four real terrain slices** make one held wafer. No falling-sand wafer pixels.
+- **Silicon Crystal Growth Fixture** consumes purified Silicon from its left inlet. Each supplied particle becomes **one visible, solid, mineable terrain cell** in one three-cell-wide connected ingot above and to the right of the fixture. Growth stops if blocked.
+- **Crystal Cutter** placed four cells to the right cuts an ingot only after it reaches its selected size. Every **three real terrain slices** make one held wafer. No falling-sand wafer pixels.
 - **Wafer Preparation Bench** consumes held wafers, physical Oxygen and Florinol to make coated wafers (Florinol's photosensitive property is fictional).
 - **Exposure & Etching Bench** consumes coated wafers and Acid, makes patterned wafers and stores a spent-bath count.
 - **Chip Assembly Bench** consumes patterned wafers and Liquid Nickel to make **finished chip inventory objects**, not sand pixels.
@@ -52,7 +52,7 @@ Purified Silicon -> [GROWER] [gap] [CUTTER] -> held wafers
               oxygen Florinol acid         liquid nickel                    data cable
 ```
 
-The fixture draws visible Silicon terrain **upwards** immediately right of itself. Cutter must be positioned **two cells right** of the growth fixture. Downstream benches exchange held workpieces when placed immediately beside one another. The chip controller consumes a chip from a carrier immediately left of itself.
+The fixture draws visible Silicon terrain **upwards** immediately right of itself. Cutter must be positioned **four cells right** of the growth fixture. Downstream benches exchange held workpieces when placed immediately beside one another. The chip controller consumes a chip from a carrier immediately left of itself.
 
 For full details see [construction and recipe guide](docs/BUILD_AND_TEST.md).
 
