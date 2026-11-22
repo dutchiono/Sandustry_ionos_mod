@@ -11,8 +11,8 @@ An experimental Sandkit mod for Sandustry 0.6.x, built around **real pixel physi
 ### Industry — native-first
 - **Vanilla Quartz → Grinder → Silica → Reaction Chamber + Charcoal → Silicon** remains unchanged.
 - Existing **heat-powered Smelter** gains a Silicon → Purified Silicon processing recipe.
-- **Silicon Crystal Growth Fixture** consumes purified Silicon from its left inlet. Each supplied particle becomes **one visible, solid, mineable terrain cell** in one three-cell-wide connected ingot above and to the right of the fixture. Growth stops if blocked.
-- **Crystal Cutter** placed four cells to the right cuts an ingot only after it reaches its selected size. Every **three real terrain slices** make one held wafer. No falling-sand wafer pixels.
+- **Silicon Ingot Extruder:** three incoming Purified Silicon pixels become one **three-high solid cross-section**. The complete ingot is shifted physically one cell to the RIGHT each time a new cross-section is added. Every terrain cell is physically present, never teleported into the cutter.
+- **Crystal Face Cutter:** place it **seven cells right of the extruder** so the six-column ingot reaches its cutting face. The cutter removes three real cells from the leading face, one per cycle; only then does it yield **one held wafer**. Missing cutter, obstruction, full track or damage halts extrusion without consuming extra feed.
 - **Wafer Preparation Bench** consumes held wafers, physical Oxygen and Florinol to make coated wafers (Florinol's photosensitive property is fictional).
 - **Exposure & Etching Bench** consumes coated wafers and Acid, makes patterned wafers and stores a spent-bath count.
 - **Chip Assembly Bench** consumes patterned wafers and Liquid Nickel to make **finished chip inventory objects**, not sand pixels.
@@ -39,22 +39,23 @@ No extra starter ores. No artificial collection contracts. No oversized Tier 10�
 ## Layout and use
 
 ```text
-Vanilla Reaction Chamber -> Silicon
-Vanilla heated Smelter -> Purified Silicon [falling-sand feedstock]
+Vanilla Quartz -> Grinder -> Silica + Charcoal -> Reaction Chamber -> Silicon
+Existing heated Smelter -> Purified Silicon
 
-                        ingot terrain ↑ ↑ ↑
-                                      █
-                  crystal fixture     █
-Purified Silicon -> [GROWER] [gap] [CUTTER] -> held wafers
-
-[CUTTER] -> [WAFER PREP] -> [ETCHING] -> [CHIP ASSEMBLY] -> [CHIP CARRIER] -> [CHIP CONTROLLER]
-                ↑   ↑         ↑                ↑                                 ↑
-              oxygen Florinol acid         liquid nickel                    data cable
+                                            3-high solid ingot moves RIGHT
+                                               >>>>>>>>>
+feed -> [EXTRUDER] [###][###][###][###][###][###] [CUTTER] -> held wafers
+                       physical terrain cells         | wafer inventory
+                                                   [WAFER PREP] -> [ETCHING]
+                                                                        |
+                                                            [CHIP ASSEMBLER]
+                                                                        |
+                                                                [CHIP CARRIER] -> [CONTROLLER]
 ```
 
-The fixture draws visible Silicon terrain **upwards** immediately right of itself. Cutter must be positioned **four cells right** of the growth fixture. Downstream benches exchange held workpieces when placed immediately beside one another. The chip controller consumes a chip from a carrier immediately left of itself.
+The cutter is **seven cells right** of the extruder: the ingot extends through the six cells between them. Wafers and chips are held workpieces, not flying pixels. The machine-to-machine bench transfer path is currently direct adjacency.
 
-For full details see [construction and recipe guide](docs/BUILD_AND_TEST.md).
+See [construction instructions](docs/BUILD_AND_TEST.md).
 
 ## Install and update
 
