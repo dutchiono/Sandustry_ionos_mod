@@ -1,3 +1,18 @@
+## Crystal growth reuse — architectural correction (2026-11-22)
+
+Vanilla already grows **Fluxite crystal** from a Flux Emanator fed with Voidbloom (from RedSand and Amethelis), and physical **Auralite crystal** also grows. The silicon line must use this as the gameplay precedent: **visible, world-space solid growth, not a powder pixel or a counter disguised as a crystal**.
+
+Correct proposed experience:
+1. Feed purified Silicon into a seed/growth assembly placed in a physically enclosed and heated space.
+2. A single connected solid ingot grows in the world tile by tile or through a native crystal-growth hook, limited by free space and feedstock.
+3. Stop or slow growth when obstructed, and distinguish a complete ingot from the tiny seed.
+4. A cutting head moves across or contacts the solid ingot, removes actual geometry, and yields **discrete wafer items** held in a carrier or machine inventory. Silicon dust returns as ordinary physical particles.
+5. Wafers are transported on carriers/fixtures, not through pumps. Chips remain discrete device inventory and are installed in combinators or factory hardware.
+
+**Critical implementation gate:** the mod code currently models the crystal as persistent `crystalMass` within a 3×3 structure. This is a *placeholder representation*, NOT a visible grown crystal. Do not label that finished. The mod must establish whether Sandkit exposes a native growing-crystal world API; otherwise implement world-space structure/terrain growth with cleanup, collision and harvest semantics before shipping.
+
+This doesn't require another Tier 10–11 progression branch. The scope is primarily **Tier 8: silicon ingot/wafer production; Tier 9: photolithography and actual chips; earlier optional logistics/controls**. The previous speculative Tier 10–11 industries are deferred.
+
 # Iono's Industrial Expansion — coherent Tiers 8–11 (2026-11-22)
 
 **Design status:** authored specification, not registered playable recipes. Existing `main.js` still contains an obsolete quick-prototype fixed-machine chain and must not be considered the authoritative recipe list. This document supersedes its chemistry and production logic.
