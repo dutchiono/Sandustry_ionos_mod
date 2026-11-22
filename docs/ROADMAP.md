@@ -5,9 +5,9 @@ Updated 2026-11-22. This file tracks the state of the **actual GitHub source**, 
 ## Implemented and source-simulated
 - [x] Vanilla silicon route preserved; additional Purified Silicon recipe bound to existing Smelter
 - [x] World-space single-crystal Silicon terrain registration
-- [x] Purified-Silicon feed grows visible terrain, one solid cell per consumed particle
+- [x] Purified-Silicon feed grows visible terrain, one connected solid cell per consumed particle (three-wide ingot)
 - [x] Growth obstruction stops material consumption
-- [x] Mature crystal harvested tile-by-tile; four removed tiles make one held wafer
+- [x] Mature crystal harvested tile-by-tile; three removed tiles make one held wafer
 - [x] No falling-sand chip/wafer elements
 - [x] Wafer preparation consumes existing Oxygen and Florinol
 - [x] Etch processing consumes Acid; spent bath held as quantity
